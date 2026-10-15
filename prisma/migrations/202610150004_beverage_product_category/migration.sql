@@ -1,0 +1,1 @@
+ALTER TYPE "ProductCategory" RENAME VALUE 'SODA' TO 'BEVERAGE';

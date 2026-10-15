@@ -1,0 +1,54 @@
+{
+  "name": "gaming-control",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,ADMIN \"npm run dev -w @gaming/api\" \"npm run dev -w @gaming/admin\"",
+    "build": "npm run typecheck && npm run build -w @gaming/api && npm run build -w @gaming/admin",
+    "typecheck": "tsc --noEmit -p apps/api && tsc --noEmit -p apps/admin && tsc -p tsconfig.tests.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/*.test.ts",
+    "test:integration": "node --test tests/integration/*.test.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node prisma/seed.ts",
+    "db:reset-local": "node scripts/reset-local-operational-data.mjs",
+    "prepare:production": "powershell -ExecutionPolicy Bypass -File scripts/prepare-production.ps1",
+    "serve": "node scripts/serve-local.mjs",
+    "desktop:dev": "npm run tauri dev -w @gaming/admin",
+    "desktop:build": "npm run tauri build -w @gaming/admin",
+    "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.0.0",
+    "@prisma/adapter-pg": "^7.0.0",
+    "pg": "^8.16.0",
+    "dotenv": "^17.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.0.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.39.0",
+    "@eslint/js": "^9.39.0",
+    "typescript-eslint": "^8.46.0",
+    "prettier": "^3.6.0"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0",
+    "mysql2": "^3.24.0"
+  }
+}

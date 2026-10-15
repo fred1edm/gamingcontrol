@@ -1,0 +1,319 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+enum StationType {
+  PC
+  PS4
+  PS5
+  XBOX
+  NINTENDO_SWITCH
+  OTHER
+}
+enum StationStatus {
+  AVAILABLE
+  IN_USE
+  ENDING_SOON
+  FINISHED
+  OFFLINE
+  MAINTENANCE
+  RESERVED
+}
+enum SessionMode {
+  FIXED
+  OPEN
+}
+enum SessionStatus {
+  ACTIVE
+  PAUSED
+  SAVED
+  ENDING_SOON
+  TIME_FINISHED
+  CLOSED
+  CANCELLED
+}
+enum ChargeType {
+  ONE_TIME_PER_SESSION
+}
+enum LoyaltyRewardType {
+  FREE_HOUR
+  SNACK_KIT
+}
+enum ProductCategory {
+  BEVERAGE
+  SNACK
+}
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  name String
+  passwordHash String
+  role Role @default(EMPLOYEE)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  loyaltyRedemptions LoyaltyRedemption[] @relation("LoyaltyRedemptionCreator")
+}
+model Station {
+  id String @id @default(uuid()) @db.Uuid
+  name String @unique
+  type StationType
+  status StationStatus @default(AVAILABLE)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  rates StationRate[]
+  sessions Session[]
+}
+model StationRate {
+  id String @id @default(uuid()) @db.Uuid
+  stationId String @db.Uuid
+  station Station @relation(fields:[stationId], references:[id])
+  hourlyCents Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([stationId,createdAt])
+}
+model Session {
+  id String @id @default(uuid()) @db.Uuid
+  stationId String @db.Uuid
+  station Station @relation(fields:[stationId], references:[id])
+  startedBy String @db.Uuid
+  startedAt DateTime @default(now()) @db.Timestamptz(3)
+  endsAt DateTime? @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  status SessionStatus @default(ACTIVE)
+  mode SessionMode
+  baseMinutes Int?
+  baseAmount Int
+  hourlyCents Int
+  totalAmount Int
+  closedAt DateTime? @db.Timestamptz(3)
+  closedBy String? @db.Uuid
+  extensions SessionExtension[]
+  extras SessionExtra[]
+  sales Sale[]
+  payments Payment[]
+  savedCode String? @unique
+  savedAt DateTime? @db.Timestamptz(3)
+  savedName String?
+  savedRemainingSeconds Int?
+  pausedAt DateTime? @db.Timestamptz(3)
+  pausedRemainingSeconds Int?
+  @@index([stationId,startedAt])
+}
+model LoyaltyCard {
+  id String @id @default(uuid()) @db.Uuid
+  customerName String
+  stampCount Int @default(0)
+  freeHourAvailable Boolean @default(false)
+  snackKitAvailable Boolean @default(false)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  redemptions LoyaltyRedemption[]
+  @@index([customerName])
+}
+model LoyaltyRedemption {
+  id String @id @default(uuid()) @db.Uuid
+  cardId String @db.Uuid
+  card LoyaltyCard @relation(fields:[cardId], references:[id])
+  rewardType LoyaltyRewardType
+  stampsUsed Int
+  promotionValueCents Int @default(0)
+  sodaProductName String?
+  snackProductName String?
+  createdBy String @db.Uuid
+  creator User @relation("LoyaltyRedemptionCreator", fields:[createdBy], references:[id])
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([cardId,createdAt])
+}
+enum SaleStatus {
+  OPEN
+  PAID
+  CANCELLED
+}
+enum InventoryMovementType {
+  PURCHASE
+  SALE
+  ADJUSTMENT
+  LOSS
+  RETURN
+}
+model Product {
+  id String @id @default(uuid()) @db.Uuid
+  name String @unique
+  sku String? @unique
+  category ProductCategory @default(SNACK)
+  stockCurrent Int @default(0)
+  stockMinimum Int @default(0)
+  salePriceCents Int
+  costCents Int?
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  items SaleItem[]
+  movements InventoryMovement[]
+}
+model Sale {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String? @db.Uuid
+  session Session? @relation(fields:[sessionId], references:[id])
+  status SaleStatus @default(OPEN)
+  totalCents Int @default(0)
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  items SaleItem[]
+  payments Payment[]
+  @@index([sessionId,createdAt])
+}
+model SaleItem {
+  id String @id @default(uuid()) @db.Uuid
+  saleId String @db.Uuid
+  sale Sale @relation(fields:[saleId], references:[id])
+  productId String @db.Uuid
+  product Product @relation(fields:[productId], references:[id])
+  productName String
+  unitPriceCents Int
+  quantity Int
+  subtotalCents Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([productId,createdAt])
+}
+enum PaymentMethod {
+  CASH
+  YAPE
+  PLIN
+  CARD
+  TRANSFER
+  OTHER
+}
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+enum CashMovementType {
+  OPENING
+  PAYMENT
+  INCOME
+  WITHDRAWAL
+  ADJUSTMENT
+}
+model CashRegister {
+  id String @id @default(uuid()) @db.Uuid
+  status CashRegisterStatus @default(OPEN)
+  openingAmount Int
+  closingAmount Int?
+  expectedAmount Int?
+  difference Int?
+  openedBy String @db.Uuid
+  closedBy String? @db.Uuid
+  openedAt DateTime @default(now()) @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  movements CashMovement[]
+  payments Payment[]
+  @@index([status,openedAt])
+}
+model CashMovement {
+  id String @id @default(uuid()) @db.Uuid
+  cashRegisterId String @db.Uuid
+  cashRegister CashRegister @relation(fields:[cashRegisterId], references:[id])
+  type CashMovementType
+  amount Int
+  method PaymentMethod?
+  reason String?
+  paymentId String? @db.Uuid
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([cashRegisterId,createdAt])
+}
+model Payment {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String? @db.Uuid
+  session Session? @relation(fields:[sessionId], references:[id])
+  saleId String? @db.Uuid
+  sale Sale? @relation(fields:[saleId], references:[id])
+  cashRegisterId String @db.Uuid
+  cashRegister CashRegister @relation(fields:[cashRegisterId], references:[id])
+  method PaymentMethod
+  amountCents Int
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([sessionId])
+  @@unique([saleId])
+  @@index([cashRegisterId,createdAt])
+}
+model Setting {
+  key String @id
+  value String
+  updatedBy String? @db.Uuid
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+model InventoryMovement {
+  id String @id @default(uuid()) @db.Uuid
+  productId String @db.Uuid
+  product Product @relation(fields:[productId], references:[id])
+  type InventoryMovementType
+  quantity Int
+  stockBefore Int
+  stockAfter Int
+  unitCostCents Int?
+  reason String?
+  saleId String? @db.Uuid
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([productId,createdAt])
+}
+model SessionExtension {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @db.Uuid
+  session Session @relation(fields:[sessionId], references:[id])
+  minutesAdded Int
+  amount Int
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model Extra {
+  id String @id @default(uuid()) @db.Uuid
+  name String @unique
+  priceCents Int
+  active Boolean @default(true)
+  chargeType ChargeType @default(ONE_TIME_PER_SESSION)
+  sessions SessionExtra[]
+}
+model SessionExtra {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @db.Uuid
+  session Session @relation(fields:[sessionId], references:[id])
+  extraId String @db.Uuid
+  extra Extra @relation(fields:[extraId], references:[id])
+  name String
+  quantity Int
+  unitPrice Int
+  chargeType ChargeType @default(ONE_TIME_PER_SESSION)
+  total Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([sessionId,extraId])
+}
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  action String
+  entityType String
+  entityId String
+  oldData Json?
+  newData Json?
+  ipAddress String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([createdAt])
+}
+model Idempotency {
+  key String @id
+  userId String @db.Uuid
+  fingerprint String
+  response Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}

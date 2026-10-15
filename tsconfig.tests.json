@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "tests/**/*.ts",
+    "prisma/seed.ts",
+    "prisma.config.ts",
+    "apps/api/src/**/*.ts",
+    "packages/shared/src/**/*.ts"
+  ]
+}
