@@ -233,4 +233,12 @@ La vista Tarjetas se reorganizó para mostrar Nueva tarjeta en una franja horizo
 
 ## render_preview_allowed_hosts
 
-La vista de despliegue en Render usa `vite preview`; para evitar `Blocked request` se agregaron a `preview.allowedHosts` los hosts explícitos `gamingcontrol.onrender.com`, `www.gamingcontrol.fpsystemlab.com` y `gamingcontrol.fpsystemlab.com`. Build local completo y typecheck aprobados. Falta publicar esta rama para que Render despliegue el arreglo.
+La vista de despliegue en Render usa `vite preview`; para evitar `Blocked request` se agregaron a `preview.allowedHosts` los hosts explícitos `gamingcontrol.onrender.com`, `www.gamingcontrol.fpsystemlab.com` y `gamingcontrol.fpsystemlab.com`. El commit `45ceda3` se publicó en `main` y Render lo desplegó con estado `Live`; ambas URLs mostraron el login.
+
+## login_refresh
+
+El acceso tiene una entrada animada, fondo ambiental y tarjeta translúcida; la animación respeta `prefers-reduced-motion`. Se quitaron las estaciones ficticias, el texto `Control local` y el placeholder `admin@gaming.local`; ahora se usa un correo de ejemplo genérico. Build completo y vista previa local revisados visualmente.
+
+## supabase_cleanup_review
+
+En el proyecto Supabase Gaming Control hay 3 usuarios, 17 estaciones, 18 tarifas, 8 sesiones cerradas, 4 ventas, 8 pagos, una caja `OPEN`, 9 movimientos de caja, 8 movimientos de inventario, 40 auditorías y 40 claves de idempotencia. El usuario autorizó borrar datos operativos e historial y preservar usuarios/credenciales; antes del borrado final se pidió confirmación adicional por la caja abierta. La revisión de Supabase también reportó RLS desactivado en 20 tablas públicas. No activar RLS sin definir políticas para no bloquear el acceso actual de la API.

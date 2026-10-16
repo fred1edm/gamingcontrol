@@ -535,6 +535,14 @@ export function App() {
           <div className="brand">
             gaming<span>control</span>
           </div>
+          <h1 className="login-title">
+            Tu espacio de juego,
+            <br />
+            <em>bajo control.</em>
+          </h1>
+          <p className="login-description">
+            Administra tus estaciones, sesiones y operación desde un solo panel.
+          </p>
           <div className="login-badges">
             <span>
               <Monitor size={18} /> PCs
@@ -543,18 +551,8 @@ export function App() {
               <Gamepad2 size={18} /> Consolas
             </span>
             <span>
-              <ShieldCheck size={18} /> Control local
+              <ShieldCheck size={18} /> Panel seguro
             </span>
-          </div>
-          <div className="visual-grid">
-            {["PLAY 01", "PLAY 02", "PC 01"].map((n, i) => (
-              <div key={n}>
-                <Gamepad2 />
-                <span>{n}</span>
-                <strong>{i === 1 ? "Disponible" : "En uso"}</strong>
-                <i />
-              </div>
-            ))}
           </div>
         </div>
         <form
@@ -586,7 +584,7 @@ export function App() {
               name="email"
               type="email"
               autoComplete="username"
-              placeholder="admin@gaming.local"
+              placeholder="tu-correo@ejemplo.com"
               required
             />
           </label>
