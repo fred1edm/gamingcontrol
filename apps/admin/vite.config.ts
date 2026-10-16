@@ -20,6 +20,11 @@ export default defineConfig({
   preview: {
     port: 5173,
     strictPort: true,
+    allowedHosts: [
+      "gamingcontrol.onrender.com",
+      "www.gamingcontrol.fpsystemlab.com",
+      "gamingcontrol.fpsystemlab.com",
+    ],
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3001",

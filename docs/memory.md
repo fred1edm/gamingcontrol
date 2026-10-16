@@ -230,3 +230,7 @@ Se agregó el apartado Tarjetas para la tarjeta física de Gorilaz Gamer: cada t
 Al canjear la hora, el encargado selecciona una estación disponible desde Tarjetas o desde el detalle de Estaciones; la API crea automáticamente una sesión fija de 60 minutos con total S/0, ocupa esa estación y la cierra al terminar sin pasar por Caja. Al canjear el kit, el encargado entrega una gaseosa y un piqueo y los descuenta del inventario mediante el flujo normal de productos.
 
 La vista Tarjetas se reorganizó para mostrar Nueva tarjeta en una franja horizontal superior y Tarjetas activas debajo a todo el ancho. En pantallas pequeñas el formulario vuelve a una sola columna para conservar la legibilidad.
+
+## render_preview_allowed_hosts
+
+La vista de despliegue en Render usa `vite preview`; para evitar `Blocked request` se agregaron a `preview.allowedHosts` los hosts explícitos `gamingcontrol.onrender.com`, `www.gamingcontrol.fpsystemlab.com` y `gamingcontrol.fpsystemlab.com`. Build local completo y typecheck aprobados. Falta publicar esta rama para que Render despliegue el arreglo.
