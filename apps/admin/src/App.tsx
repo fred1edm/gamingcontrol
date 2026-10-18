@@ -361,6 +361,12 @@ export function App() {
     { id: string; title: string; message: string; createdAt: string }[]
   >([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [attentionNotification, setAttentionNotification] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    stationId?: string;
+  } | null>(null);
   const [desktopNotificationPermission, setDesktopNotificationPermission] =
     useState<NotificationPermission>(() =>
       typeof Notification === "undefined" ? "default" : Notification.permission,
@@ -607,12 +613,16 @@ export function App() {
         title?: string;
         message?: string;
         createdAt?: string;
+        type?: string;
+        stationId?: string;
       };
       const next = {
         id: item.id ?? crypto.randomUUID(),
         title: item.title ?? "Aviso",
         message: item.message ?? "Hay una actualización en el sistema.",
         createdAt: item.createdAt ?? new Date().toISOString(),
+        type: item.type,
+        stationId: item.stationId,
       };
       setNotifications((current) =>
         [next, ...current.filter((n) => n.id !== next.id)].slice(0, 20),
@@ -620,6 +630,8 @@ export function App() {
       setNotice(next.message);
       playNotificationSound();
       showDesktopNotification(next);
+      if (next.type === "ENDING_SOON" || next.type === "SESSION_FINISHED")
+        setAttentionNotification(next);
     });
     return () => {
       reloadEvents.forEach((name) => socket.off(name, reload));
@@ -3974,6 +3986,39 @@ export function App() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+      {attentionNotification && (
+        <div className="attention-overlay" role="alertdialog" aria-live="assertive">
+          <div className="attention-card">
+            <div className="attention-card-icon">
+              <Bell size={24} />
+            </div>
+            <div className="attention-card-copy">
+              <strong>{attentionNotification.title}</strong>
+              <p>{attentionNotification.message}</p>
+            </div>
+            <div className="attention-card-actions">
+              {attentionNotification.stationId && (
+                <Button
+                  onClick={() => {
+                    setPage("stations");
+                    setSelected(attentionNotification.stationId!);
+                    setAttentionNotification(null);
+                  }}
+                >
+                  Ver estación
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setAttentionNotification(null)}
+              >
+                Cerrar aviso
+              </Button>
+            </div>
+          </div>
         </div>
       )}
       {busy && (

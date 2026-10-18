@@ -1369,6 +1369,53 @@ details pre {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+.attention-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #05090acc;
+}
+.attention-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px 16px;
+  width: min(520px, 100%);
+  padding: 22px;
+  border: 1px solid #91edbb70;
+  border-radius: 16px;
+  background: #192022;
+  box-shadow: 0 24px 80px #000b, 0 0 0 4px #91edbb18;
+}
+.attention-card-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  color: #111718;
+  background: var(--green);
+}
+.attention-card-copy {
+  display: grid;
+  gap: 5px;
+  align-content: center;
+}
+.attention-card-copy strong {
+  font-size: 19px;
+}
+.attention-card-copy p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.attention-card-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .payment-fields {
   display: grid;
   gap: 8px;
