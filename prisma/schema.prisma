@@ -243,7 +243,6 @@ model Payment {
   amountCents Int
   createdBy String @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  @@unique([saleId])
   @@index([cashRegisterId,createdAt])
 }
 model Setting {

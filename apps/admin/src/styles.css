@@ -1347,6 +1347,66 @@ details pre {
 .prepay-box button {
   white-space: nowrap;
 }
+.payment-fields {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.payment-split-toggle {
+  justify-self: start;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.split-payment-fields {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.split-payment-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.split-payment-heading small,
+.split-payment-actions span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.split-payment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 0.7fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.split-payment-row input,
+.split-payment-row select {
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 10px;
+}
+.split-payment-row button {
+  min-height: 36px;
+  padding: 4px 8px;
+}
+.split-payment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.split-payment-actions button {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.split-payment-actions .paid-ok {
+  color: var(--green);
+}
+.split-payment-actions .paid-pending {
+  color: var(--amber);
+}
 .session-actions > h3 {
   margin: 0;
 }

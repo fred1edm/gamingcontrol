@@ -20,6 +20,7 @@ import {
   stockInput,
   saleInput,
   paymentInput,
+  splitPaymentInput,
   cashOpenInput,
   cashCloseInput,
   cashMovementInput,
@@ -495,11 +496,40 @@ export async function buildApp(
         )
     );
   }
+  function paymentLines(
+    input:
+      | {
+          method: "CASH" | "YAPE" | "PLIN" | "CARD" | "TRANSFER" | "OTHER";
+        }
+      | {
+          payments: {
+            method: "CASH" | "YAPE" | "PLIN" | "CARD" | "TRANSFER" | "OTHER";
+            amountCents: number;
+          }[];
+        },
+    totalCents: number,
+  ) {
+    const lines = "payments" in input
+      ? input.payments
+      : [{ method: input.method, amountCents: totalCents }];
+    if (lines.reduce((sum, line) => sum + line.amountCents, 0) !== totalCents)
+      throw new ApiError(400, "Los pagos deben coincidir con el total");
+    return lines;
+  }
   async function takePayment(
     tx: Prisma.TransactionClient,
     req: FastifyRequest,
     target: { sessionId?: string; saleId?: string },
-    method: "CASH" | "YAPE" | "PLIN" | "CARD" | "TRANSFER" | "OTHER",
+    input:
+      | {
+          method: "CASH" | "YAPE" | "PLIN" | "CARD" | "TRANSFER" | "OTHER";
+        }
+      | {
+          payments: {
+            method: "CASH" | "YAPE" | "PLIN" | "CARD" | "TRANSFER" | "OTHER";
+            amountCents: number;
+          }[];
+        },
   ) {
     const register = await openCash(tx);
     if ((target.sessionId ? 1 : 0) + (target.saleId ? 1 : 0) !== 1)
@@ -521,15 +551,30 @@ export async function buildApp(
       amountCents = session.totalAmount - paidAmount(session);
       if (amountCents <= 0)
         throw new ApiError(409, "La sesión ya está pagada por completo");
-      const payment = await tx.payment.create({
-        data: {
-          sessionId: session.id,
-          cashRegisterId: register.id,
-          method,
-          amountCents,
-          createdBy: actor(req).id,
-        },
-      });
+      const lines = paymentLines(input, amountCents);
+      const payments = [];
+      for (const line of lines) {
+        const payment = await tx.payment.create({
+          data: {
+            sessionId: session.id,
+            cashRegisterId: register.id,
+            method: line.method,
+            amountCents: line.amountCents,
+            createdBy: actor(req).id,
+          },
+        });
+        payments.push(payment);
+        await tx.cashMovement.create({
+          data: {
+            cashRegisterId: register.id,
+            type: "PAYMENT",
+            method: line.method,
+            amount: line.amountCents,
+            paymentId: payment.id,
+            createdBy: actor(req).id,
+          },
+        });
+      }
       await tx.session.update({
         where: { id: session.id },
         data: {
@@ -546,21 +591,11 @@ export async function buildApp(
         where: { id: session.stationId },
         data: { status: "AVAILABLE" },
       });
-      await tx.cashMovement.create({
-        data: {
-          cashRegisterId: register.id,
-          type: "PAYMENT",
-          method,
-          amount: amountCents,
-          paymentId: payment.id,
-          createdBy: actor(req).id,
-        },
-      });
       await audit(tx, req, "SESSION_PAID", "Session", session.id, session, {
-        payment,
+        payments,
         amountCents,
       });
-      return payment;
+      return payments.length === 1 ? payments[0] : { payments, amountCents };
     }
     const sale = await tx.sale.findUnique({ where: { id: target.saleId! } });
     if (!sale || sale.status !== "OPEN" || sale.sessionId)
@@ -569,31 +604,36 @@ export async function buildApp(
         "La venta no está disponible para cobro independiente",
       );
     amountCents = sale.totalCents;
-    const payment = await tx.payment.create({
-      data: {
-        saleId: sale.id,
-        cashRegisterId: register.id,
-        method,
-        amountCents,
-        createdBy: actor(req).id,
-      },
-    });
+    const lines = paymentLines(input, amountCents);
+    const payments = [];
+    for (const line of lines) {
+      const payment = await tx.payment.create({
+        data: {
+          saleId: sale.id,
+          cashRegisterId: register.id,
+          method: line.method,
+          amountCents: line.amountCents,
+          createdBy: actor(req).id,
+        },
+      });
+      payments.push(payment);
+      await tx.cashMovement.create({
+        data: {
+          cashRegisterId: register.id,
+          type: "PAYMENT",
+          method: line.method,
+          amount: line.amountCents,
+          paymentId: payment.id,
+          createdBy: actor(req).id,
+        },
+      });
+    }
     await tx.sale.update({ where: { id: sale.id }, data: { status: "PAID" } });
-    await tx.cashMovement.create({
-      data: {
-        cashRegisterId: register.id,
-        type: "PAYMENT",
-        method,
-        amount: amountCents,
-        paymentId: payment.id,
-        createdBy: actor(req).id,
-      },
-    });
     await audit(tx, req, "SALE_PAID", "Sale", sale.id, sale, {
-      payment,
+      payments,
       amountCents,
     });
-    return payment;
+    return payments.length === 1 ? payments[0] : { payments, amountCents };
   }
   async function session(tx: Prisma.TransactionClient, id: string) {
     const s = await tx.session.findUnique({ where: { id }, include: details });
@@ -1798,7 +1838,7 @@ export async function buildApp(
   });
   app.post("/sessions/:id/prepay", async (req) => {
     const id = idOf(req),
-      { method } = paymentInput.parse(req.body);
+      input = paymentInput.or(splitPaymentInput).parse(req.body);
     return mutate(
       req,
       async (tx) => {
@@ -1819,15 +1859,30 @@ export async function buildApp(
             409,
             "La sesión ya terminó; registra el pago final",
           );
-        const payment = await tx.payment.create({
-          data: {
-            sessionId: id,
-            cashRegisterId: register.id,
-            method,
-            amountCents: current.totalAmount,
-            createdBy: actor(req).id,
-          },
-        });
+        const lines = paymentLines(input, current.totalAmount);
+        const payments = [];
+        for (const line of lines) {
+          const payment = await tx.payment.create({
+            data: {
+              sessionId: id,
+              cashRegisterId: register.id,
+              method: line.method,
+              amountCents: line.amountCents,
+              createdBy: actor(req).id,
+            },
+          });
+          payments.push(payment);
+          await tx.cashMovement.create({
+            data: {
+              cashRegisterId: register.id,
+              type: "PAYMENT",
+              method: line.method,
+              amount: line.amountCents,
+              paymentId: payment.id,
+              createdBy: actor(req).id,
+            },
+          });
+        }
         await tx.session.update({
           where: { id },
           data: { totalAmount: current.totalAmount },
@@ -1836,21 +1891,13 @@ export async function buildApp(
           where: { sessionId: id, status: "OPEN" },
           data: { status: "PAID" },
         });
-        await tx.cashMovement.create({
-          data: {
-            cashRegisterId: register.id,
-            type: "PAYMENT",
-            method,
-            amount: current.totalAmount,
-            paymentId: payment.id,
-            createdBy: actor(req).id,
-          },
-        });
         await audit(tx, req, "SESSION_PREPAID", "Session", id, old, {
-          payment,
+          payments,
           amountCents: current.totalAmount,
         });
-        return payment;
+        return payments.length === 1
+          ? payments[0]
+          : { payments, amountCents: current.totalAmount };
       },
       events.sessionUpdated,
     );
@@ -2111,13 +2158,13 @@ export async function buildApp(
   });
   app.post("/sessions/:id/pay", async (req) => {
     const id = idOf(req),
-      { method } = paymentInput.parse(req.body);
-    return mutate(req, (tx) => takePayment(tx, req, { sessionId: id }, method));
+      input = paymentInput.or(splitPaymentInput).parse(req.body);
+    return mutate(req, (tx) => takePayment(tx, req, { sessionId: id }, input));
   });
   app.post("/sales/:id/pay", async (req) => {
     const id = idOf(req),
-      { method } = paymentInput.parse(req.body);
-    return mutate(req, (tx) => takePayment(tx, req, { saleId: id }, method));
+      input = paymentInput.or(splitPaymentInput).parse(req.body);
+    return mutate(req, (tx) => takePayment(tx, req, { saleId: id }, input));
   });
   app.get("/reports/:period", async (req) => {
     admin(req);

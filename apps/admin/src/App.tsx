@@ -63,6 +63,136 @@ const currency = (c: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(
     c / 100,
   );
+type PaymentDraft = { method: string; amount: string };
+const paymentMethodOptions = [
+  ["CASH", "Efectivo"],
+  ["YAPE", "Yape"],
+  ["PLIN", "Plin"],
+  ["CARD", "Tarjeta"],
+  ["TRANSFER", "Transferencia"],
+  ["OTHER", "Otro"],
+] as const;
+const newPaymentDrafts = (): PaymentDraft[] => [
+  { method: "CASH", amount: "" },
+  { method: "YAPE", amount: "" },
+];
+function PaymentFields({
+  split,
+  onSplitChange,
+  method,
+  onMethodChange,
+  lines,
+  onLinesChange,
+  totalCents,
+}: {
+  split: boolean;
+  onSplitChange: (value: boolean) => void;
+  method: string;
+  onMethodChange: (value: string) => void;
+  lines: PaymentDraft[];
+  onLinesChange: (value: PaymentDraft[]) => void;
+  totalCents: number;
+}) {
+  const enteredCents = lines.reduce((sum, line) => {
+    try {
+      return sum + parseCents(line.amount || "0");
+    } catch {
+      return sum;
+    }
+  }, 0);
+  return (
+    <div className="payment-fields">
+      {!split ? (
+        <label>
+          Método de pago
+          <select
+            value={method}
+            onChange={(event) => onMethodChange(event.target.value)}
+          >
+            {paymentMethodOptions.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div className="split-payment-fields">
+          <div className="split-payment-heading">
+            <strong>Pago dividido</strong>
+            <small>Debe sumar {currency(totalCents)}</small>
+          </div>
+          {lines.map((line, index) => (
+            <div className="split-payment-row" key={`${index}-${line.method}`}>
+              <select
+                aria-label={`Método de pago ${index + 1}`}
+                value={line.method}
+                onChange={(event) => {
+                  const next = [...lines];
+                  next[index] = { ...line, method: event.target.value };
+                  onLinesChange(next);
+                }}
+              >
+                {paymentMethodOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label={`Monto de pago ${index + 1}`}
+                inputMode="decimal"
+                placeholder="0.00"
+                value={line.amount}
+                onChange={(event) => {
+                  const next = [...lines];
+                  next[index] = { ...line, amount: event.target.value };
+                  onLinesChange(next);
+                }}
+              />
+              {lines.length > 2 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label="Quitar método"
+                  onClick={() =>
+                    onLinesChange(lines.filter((_, item) => item !== index))
+                  }
+                >
+                  <X size={16} />
+                </Button>
+              )}
+            </div>
+          ))}
+          <div className="split-payment-actions">
+            {lines.length < 4 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  onLinesChange([...lines, { method: "CASH", amount: "" }])
+                }
+              >
+                <Plus size={16} /> Método
+              </Button>
+            )}
+            <span className={enteredCents === totalCents ? "paid-ok" : "paid-pending"}>
+              {currency(enteredCents)} / {currency(totalCents)}
+            </span>
+          </div>
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        className="payment-split-toggle"
+        onClick={() => onSplitChange(!split)}
+      >
+        {split ? "Usar un solo método" : "Pago dividido"}
+      </Button>
+    </div>
+  );
+}
 const stamp = (s: string) =>
   new Date(s).toLocaleString("es-PE", {
     timeZone: "America/Lima",
@@ -281,6 +411,14 @@ export function App() {
   const [chosenLoyaltySoda, setChosenLoyaltySoda] = useState("");
   const [chosenLoyaltySnack, setChosenLoyaltySnack] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [splitSessionPayment, setSplitSessionPayment] = useState(false);
+  const [sessionPaymentLines, setSessionPaymentLines] = useState<PaymentDraft[]>(
+    newPaymentDrafts,
+  );
+  const [splitQuickSalePayment, setSplitQuickSalePayment] = useState(false);
+  const [quickSalePaymentLines, setQuickSalePaymentLines] = useState<
+    PaymentDraft[]
+  >(newPaymentDrafts);
   const clock = useRef({ server: Date.now(), local: performance.now() });
   const pending = useRef<{ signature: string; key: string } | null>(null);
   const notificationAudio = useRef<HTMLAudioElement | null>(null);
@@ -2029,10 +2167,17 @@ export function App() {
                           },
                         );
                         await api(`/sales/${sale.id}/pay`, {
-                          method: paymentMethod,
+                          ...paymentBody(
+                            splitQuickSalePayment,
+                            paymentMethod,
+                            quickSalePaymentLines,
+                            sale.totalCents,
+                          ),
                         });
                         setQuickSaleProduct("");
                         setQuickSaleQuantity(1);
+                        setSplitQuickSalePayment(false);
+                        setQuickSalePaymentLines(newPaymentDrafts());
                         setNotice(
                           `Venta registrada y cobrada: ${currency(sale.totalCents)}.`,
                         );
@@ -2074,20 +2219,18 @@ export function App() {
                         required
                       />
                     </label>
-                    <label>
-                      Método de pago
-                      <select
-                        value={paymentMethod}
-                        onChange={(event) => setPaymentMethod(event.target.value)}
-                      >
-                        <option value="CASH">Efectivo</option>
-                        <option value="YAPE">Yape</option>
-                        <option value="PLIN">Plin</option>
-                        <option value="CARD">Tarjeta</option>
-                        <option value="TRANSFER">Transferencia</option>
-                        <option value="OTHER">Otro</option>
-                      </select>
-                    </label>
+                    <PaymentFields
+                      split={splitQuickSalePayment}
+                      onSplitChange={setSplitQuickSalePayment}
+                      method={paymentMethod}
+                      onMethodChange={setPaymentMethod}
+                      lines={quickSalePaymentLines}
+                      onLinesChange={setQuickSalePaymentLines}
+                      totalCents={
+                        (selectedQuickSaleProduct?.salePriceCents ?? 0) *
+                        quickSaleQuantity
+                      }
+                    />
                     <Button
                       disabled={
                         busy ||
@@ -2786,30 +2929,30 @@ export function App() {
                       {session.mode === "FIXED" &&
                         !session.payments?.length && (
                           <div className="prepay-box">
-                            <label>
-                              Cobrar al iniciar (opcional)
-                              <select
-                                value={paymentMethod}
-                                onChange={(e) =>
-                                  setPaymentMethod(e.target.value)
-                                }
-                              >
-                                <option value="CASH">Efectivo</option>
-                                <option value="YAPE">Yape</option>
-                                <option value="PLIN">Plin</option>
-                                <option value="CARD">Tarjeta</option>
-                                <option value="TRANSFER">Transferencia</option>
-                                <option value="OTHER">Otro</option>
-                              </select>
-                            </label>
+                            <PaymentFields
+                              split={splitSessionPayment}
+                              onSplitChange={setSplitSessionPayment}
+                              method={paymentMethod}
+                              onMethodChange={setPaymentMethod}
+                              lines={sessionPaymentLines}
+                              onLinesChange={setSessionPaymentLines}
+                              totalCents={session.totalAmount}
+                            />
                             <Button
                               variant="outline"
                               disabled={busy || !connected || !cash.register}
                               onClick={() =>
                                 void run(async () => {
                                   await api(`/sessions/${session.id}/prepay`, {
-                                    method: paymentMethod,
+                                    ...paymentBody(
+                                      splitSessionPayment,
+                                      paymentMethod,
+                                      sessionPaymentLines,
+                                      session.totalAmount,
+                                    ),
                                   });
+                                  setSplitSessionPayment(false);
+                                  setSessionPaymentLines(newPaymentDrafts());
                                   setNotice(
                                     "Pago anticipado registrado. Puedes seguir alquilando o mover la sesión a otra estación.",
                                   );
@@ -3020,28 +3163,30 @@ export function App() {
                             : "El historial está guardado. Registra el pago para liberar la estación."}
                         </p>
                       </div>
-                      <label>
-                        Método de pago
-                        <select
-                          value={paymentMethod}
-                          onChange={(e) => setPaymentMethod(e.target.value)}
-                        >
-                          <option value="CASH">Efectivo</option>
-                          <option value="YAPE">Yape</option>
-                          <option value="PLIN">Plin</option>
-                          <option value="CARD">Tarjeta</option>
-                          <option value="TRANSFER">Transferencia</option>
-                          <option value="OTHER">Otro</option>
-                        </select>
-                      </label>
+                      <PaymentFields
+                        split={splitSessionPayment}
+                        onSplitChange={setSplitSessionPayment}
+                        method={paymentMethod}
+                        onMethodChange={setPaymentMethod}
+                        lines={sessionPaymentLines}
+                        onLinesChange={setSessionPaymentLines}
+                        totalCents={sessionBalance}
+                      />
                       <Button
                         className="w-full mt-4"
                         disabled={busy || !connected || !cash.register}
                         onClick={() =>
                           void run(async () => {
                             await api(`/sessions/${session.id}/pay`, {
-                              method: paymentMethod,
+                              ...paymentBody(
+                                splitSessionPayment,
+                                paymentMethod,
+                                sessionPaymentLines,
+                                sessionBalance,
+                              ),
                             });
+                            setSplitSessionPayment(false);
+                            setSessionPaymentLines(newPaymentDrafts());
                             setNotice("Pago registrado y estación liberada.");
                             setSelected(null);
                           })
@@ -3786,4 +3931,21 @@ function parseCents(value: string) {
     throw new Error("Escribe un precio válido con máximo dos decimales");
   const [whole, fraction = ""] = value.split(".");
   return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+}
+function paymentBody(
+  split: boolean,
+  method: string,
+  lines: PaymentDraft[],
+  totalCents: number,
+) {
+  if (!split) return { method };
+  const payments = lines.map((line) => ({
+    method: line.method,
+    amountCents: parseCents(line.amount),
+  }));
+  if (payments.some((payment) => payment.amountCents <= 0))
+    throw new Error("Cada importe debe ser mayor que cero");
+  if (payments.reduce((sum, payment) => sum + payment.amountCents, 0) !== totalCents)
+    throw new Error(`Los pagos deben sumar ${currency(totalCents)}`);
+  return { payments };
 }

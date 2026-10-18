@@ -94,8 +94,20 @@ export const saleInput = z.object({
   sessionId: z.string().uuid().optional().nullable(),
   items: z.array(saleItemInput).min(1).max(50),
 });
-export const paymentInput = z.object({
-  method: z.enum(["CASH", "YAPE", "PLIN", "CARD", "TRANSFER", "OTHER"]),
+export const paymentMethod = z.enum([
+  "CASH",
+  "YAPE",
+  "PLIN",
+  "CARD",
+  "TRANSFER",
+  "OTHER",
+]);
+export const paymentInput = z.object({ method: paymentMethod });
+export const splitPaymentInput = z.object({
+  payments: z
+    .array(z.object({ method: paymentMethod, amountCents: money.refine((n) => n > 0) }))
+    .min(2)
+    .max(4),
 });
 export const sessionSaveInput = z.object({
   name: z.string().trim().min(1).max(80).optional(),
