@@ -273,6 +273,8 @@ export function App() {
   const [deleteLoyaltyCard, setDeleteLoyaltyCard] =
     useState<LoyaltyCardView | null>(null);
   const [chosenProduct, setChosenProduct] = useState("");
+  const [quickSaleProduct, setQuickSaleProduct] = useState("");
+  const [quickSaleQuantity, setQuickSaleQuantity] = useState(1);
   const [chosenLoyaltyCard, setChosenLoyaltyCard] = useState("");
   const [chosenLoyaltyStation, setChosenLoyaltyStation] = useState("");
   const [chosenLoyaltySoda, setChosenLoyaltySoda] = useState("");
@@ -559,6 +561,9 @@ export function App() {
   const currentExtraQuantity =
     session?.extras.find((e) => e.name === selectedExtra?.name)?.quantity ?? 0;
   const maxExtraQuantity = Math.max(1, 4 - currentExtraQuantity);
+  const selectedQuickSaleProduct = products.find(
+    (product) => product.id === quickSaleProduct,
+  );
   if (!token)
     return (
       <div className="login">
@@ -1980,6 +1985,111 @@ export function App() {
                   <Button disabled={busy}>Registrar movimiento</Button>
                 </form>
               )}
+              <div className="panel">
+                <h2>Venta rápida</h2>
+                <p>
+                  Registra bebidas o snacks sin asociarlos a una estación.
+                </p>
+                {!cash.register ? (
+                  <div className="empty">
+                    Abre la caja para registrar y cobrar una venta.
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (
+                        !selectedQuickSaleProduct ||
+                        quickSaleQuantity < 1 ||
+                        quickSaleQuantity >
+                          selectedQuickSaleProduct.stockCurrent
+                      )
+                        return;
+                      void run(async () => {
+                        const sale = await api<{ id: string; totalCents: number }>(
+                          "/sales",
+                          {
+                            items: [
+                              {
+                                productId: selectedQuickSaleProduct.id,
+                                quantity: quickSaleQuantity,
+                              },
+                            ],
+                          },
+                        );
+                        await api(`/sales/${sale.id}/pay`, {
+                          method: paymentMethod,
+                        });
+                        setQuickSaleProduct("");
+                        setQuickSaleQuantity(1);
+                        setNotice(
+                          `Venta registrada y cobrada: ${currency(sale.totalCents)}.`,
+                        );
+                      });
+                    }}
+                  >
+                    <label>
+                      Producto
+                      <select
+                        value={quickSaleProduct}
+                        onChange={(event) =>
+                          setQuickSaleProduct(event.target.value)
+                        }
+                        required
+                      >
+                        <option value="">Seleccionar</option>
+                        {products.map((product) => (
+                          <option
+                            key={product.id}
+                            value={product.id}
+                            disabled={product.stockCurrent < 1}
+                          >
+                            {product.name} · {currency(product.salePriceCents)} ·{" "}
+                            {product.stockCurrent} disponibles
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Cantidad
+                      <input
+                        type="number"
+                        min="1"
+                        max={selectedQuickSaleProduct?.stockCurrent ?? 1}
+                        value={quickSaleQuantity}
+                        onChange={(event) =>
+                          setQuickSaleQuantity(Number(event.target.value))
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Método de pago
+                      <select
+                        value={paymentMethod}
+                        onChange={(event) => setPaymentMethod(event.target.value)}
+                      >
+                        <option value="CASH">Efectivo</option>
+                        <option value="YAPE">Yape</option>
+                        <option value="PLIN">Plin</option>
+                        <option value="CARD">Tarjeta</option>
+                        <option value="TRANSFER">Transferencia</option>
+                        <option value="OTHER">Otro</option>
+                      </select>
+                    </label>
+                    <Button
+                      disabled={
+                        busy ||
+                        !selectedQuickSaleProduct ||
+                        quickSaleQuantity < 1 ||
+                        quickSaleQuantity > selectedQuickSaleProduct.stockCurrent
+                      }
+                    >
+                      Registrar venta
+                    </Button>
+                  </form>
+                )}
+              </div>
             </div>
           )}
           {page === "settings" && (
