@@ -26,6 +26,7 @@ import {
   settingInput,
   sessionSaveInput,
   sessionResumeInput,
+  sessionMoveInput,
   loyaltyStampInput,
   loyaltyRedeemInput,
   notificationSoundValues,
@@ -1526,6 +1527,62 @@ export async function buildApp(
     const sessionId = idOf(req);
     const data = saleInput.omit({ sessionId: true }).parse(req.body);
     return mutate(req, (tx) => createSale(tx, req, { ...data, sessionId }));
+  });
+  app.post("/sessions/:id/move", async (req) => {
+    const id = idOf(req),
+      input = sessionMoveInput.parse(req.body ?? {});
+    return mutate(
+      req,
+      async (tx) => {
+        const old = await session(tx, id);
+        editable(old);
+        const current = view(old, new Date());
+        if (!["ACTIVE", "ENDING_SOON"].includes(current.status))
+          throw new ApiError(409, "Solo se puede mover una sesión activa");
+        if (old.stationId === input.stationId)
+          throw new ApiError(409, "La sesión ya está en esa estación");
+        const target = await tx.station.findUnique({
+          where: { id: input.stationId },
+          select: { id: true, name: true, type: true, active: true, status: true },
+        });
+        if (!target?.active)
+          throw new ApiError(404, "Estación de destino no encontrada");
+        if (target.type !== old.station.type)
+          throw new ApiError(409, "Solo puedes mover la sesión a una estación del mismo tipo");
+        if (
+          target.status !== "AVAILABLE" ||
+          (await tx.session.findFirst({
+            where: {
+              stationId: target.id,
+              status: { notIn: ["CLOSED", "CANCELLED", "PAUSED", "SAVED"] },
+            },
+            select: { id: true },
+          }))
+        )
+          throw new ApiError(409, "La estación de destino no está disponible");
+        const updated = await tx.session.update({
+          where: { id },
+          data: { stationId: target.id },
+          include: details,
+        });
+        await tx.station.update({
+          where: { id: old.stationId },
+          data: { status: "AVAILABLE" },
+        });
+        await tx.station.update({
+          where: { id: target.id },
+          data: { status: "IN_USE" },
+        });
+        await audit(tx, req, "SESSION_MOVED", "Session", id, old, {
+          ...updated,
+          fromStationId: old.stationId,
+          toStationId: target.id,
+          toStationName: target.name,
+        });
+        return view(updated, new Date());
+      },
+      [events.sessionUpdated, events.stationUpdated],
+    );
   });
   app.post("/sessions/:id/finish", async (req) => {
     const id = idOf(req);

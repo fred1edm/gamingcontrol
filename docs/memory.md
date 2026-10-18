@@ -117,7 +117,6 @@ Inventario, caja/pagos, reportes y auditoría están implementados en fases 2/3/
 Desde fase 1: usuarios, estaciones, tarifas, extras, inicio/extensión/final de sesión. Estado anterior/nuevo, autor, IP y UTC. No passwords/hashes. Auditoría y cambio confirman juntos. GET /audit solo ADMIN con filtros y vista detallada.
 
 ## technical_decisions — no cambiar sin justificación
-
 - Station central, no PC como entidad exclusiva.
 - Dinero en céntimos, backend autoridad, no precios recurrentes para mandos.
 - Finalizar distinto de cobrar/cerrar. La estación queda FINISHED hasta registrar el pago.
@@ -242,3 +241,7 @@ El acceso tiene una entrada animada, fondo ambiental y tarjeta translúcida; la 
 ## supabase_cleanup_review
 
 En el proyecto Supabase Gaming Control hay 3 usuarios, 17 estaciones, 18 tarifas, 8 sesiones cerradas, 4 ventas, 8 pagos, una caja `OPEN`, 9 movimientos de caja, 8 movimientos de inventario, 40 auditorías y 40 claves de idempotencia. El usuario autorizó borrar datos operativos e historial y preservar usuarios/credenciales; antes del borrado final se pidió confirmación adicional por la caja abierta. La revisión de Supabase también reportó RLS desactivado en 20 tablas públicas. No activar RLS sin definir políticas para no bloquear el acceso actual de la API.
+## session_move_update
+
+Se añadió `POST /sessions/:id/move` para trasladar una sesión activa a una estación disponible del mismo tipo. La operación conserva el tiempo, la tarifa congelada, las bebidas/snacks y los mandos adicionales, incluso con pago anticipado; libera la estación anterior y marca la nueva como `IN_USE` dentro de una transacción serializable. Se audita como `SESSION_MOVED` y la UI ofrece el selector «Mover a otra estación» en el detalle de sesión. La prueba de integración valida también el rechazo de un destino de tipo diferente.
+

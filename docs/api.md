@@ -21,7 +21,8 @@ Errores JSON: `{message, issues?}`; 400 datos inválidos, 401 autenticación, 40
 | GET /sessions/:id         | Autenticado       | Detalle y total calculado por servidor                                            |
 | POST /sessions            | Autenticado       | stationId, mode FIXED/OPEN, minutes si FIXED, extraId opcional, extraQuantity 1–4 |
 | POST /sessions/:id/extend | Autenticado       | minutes: 15,30,60,120                                                             |
-| POST /sessions/:id/extras | Autenticado       | extraId, quantity 1–4; PS4/PS5, acumulable hasta 4 mandos por sesión             |
+| POST /sessions/:id/extras | Autenticado       | extraId, quantity 1–4; PS4/PS5, acumulable hasta 4 mandos por sesión              |
+| POST /sessions/:id/move   | Autenticado       | stationId; estación disponible del mismo tipo, conserva tiempo y consumos         |
 | POST /sessions/:id/finish | Autenticado       | {}; termina tiempo, queda pendiente de pago                                       |
 | GET /audit                | ADMIN             | Últimas acciones; filtros `action`, `entityType`, `userId`, `from`, `to`, `limit` |
 

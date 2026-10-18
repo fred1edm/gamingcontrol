@@ -515,6 +515,58 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     },
   );
   await t.test(
+    "mover sesión conserva tiempo, mandos y productos",
+    async () => {
+      const target = (
+        await write("/stations", {
+          name: `TEST-MOVE-TARGET-${tag}`,
+          type: "PS5",
+          hourlyCents: 800,
+        })
+      ).json<{ id: string }>();
+      const moved = await write(
+        `/sessions/${sessionId}/move`,
+        { stationId: target.id },
+        randomUUID(),
+        employeeToken,
+      );
+      assert.equal(moved.statusCode, 200);
+      const view = moved.json<SessionView>();
+      assert.equal(view.stationId, target.id);
+      assert.equal(view.extras[0]?.quantity, 3);
+      assert.equal(view.sales[0]?.items[0]?.productName, `TEST-Gaseosa-${tag}`);
+      const list = (await read("/stations")).json<{
+        stations: StationView[];
+      }>();
+      assert.equal(
+        list.stations.find((s) => s.id === stationId)?.status,
+        "AVAILABLE",
+      );
+      assert.equal(
+        list.stations.find((s) => s.id === target.id)?.status,
+        "IN_USE",
+      );
+      const pc = (
+        await write("/stations", {
+          name: `TEST-MOVE-PC-${tag}`,
+          type: "PC",
+          hourlyCents: 400,
+        })
+      ).json<{ id: string }>();
+      assert.equal(
+        (
+          await write(
+            `/sessions/${sessionId}/move`,
+            { stationId: pc.id },
+            randomUUID(),
+            employeeToken,
+          )
+        ).statusCode,
+        409,
+      );
+    },
+  );
+  await t.test(
     "finalizar congela historial, no cobra ni cierra sin pago",
     async () => {
       const key = randomUUID(),
@@ -550,11 +602,15 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       }>();
       assert.equal(
         list.stations.find((s) => s.id === stationId)?.status,
+        "AVAILABLE",
+      );
+      assert.equal(
+        list.stations.find((s) => s.session?.id === sessionId)?.status,
         "FINISHED",
       );
       assert.equal(
         await db.auditLog.count({ where: { entityId: sessionId } }),
-        5,
+        6,
       );
     },
   );

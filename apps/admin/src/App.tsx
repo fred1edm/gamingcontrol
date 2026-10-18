@@ -239,6 +239,7 @@ export function App() {
     [chosenExtra, setChosenExtra] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false),
     [createStation, setCreateStation] = useState(false);
+  const [moveStationId, setMoveStationId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{
     type: "station" | "product";
     id: string;
@@ -500,12 +501,21 @@ export function App() {
       (s) => s.session && !s.session.finishedAt,
     ).length,
     finished = stations.filter((s) => s.status === "FINISHED").length;
+  const moveStations = session
+    ? stations.filter(
+        (candidate) =>
+          candidate.id !== station?.id &&
+          candidate.type === station.type &&
+          candidate.status === "AVAILABLE",
+      )
+    : [];
   const openStation = (id: string) => {
     setSelected(id);
     setConfirmFinish(false);
     setMinutes(60);
     setWithExtra(false);
     setChosenProduct("");
+    setMoveStationId("");
   };
   const endingSoon = stations.filter((s) => {
     if (
@@ -2474,6 +2484,50 @@ export function App() {
                           Cancelar sesión
                         </Button>
                       </div>
+                      {moveStations.length > 0 && (
+                        <div className="move-station">
+                          <label>
+                            Mover a otra estación
+                            <select
+                              value={moveStationId}
+                              onChange={(e) => setMoveStationId(e.target.value)}
+                            >
+                              <option value="">Seleccionar estación</option>
+                              {moveStations.map((candidate) => (
+                                <option key={candidate.id} value={candidate.id}>
+                                  {candidate.name}
+                                </option>
+                              ))}
+                            </select>
+                            <small>
+                              Conserva el tiempo, bebidas/snacks y mandos adicionales.
+                            </small>
+                          </label>
+                          <Button
+                            variant="outline"
+                            disabled={busy || !connected || !moveStationId}
+                            onClick={() =>
+                              void run(async () => {
+                                const target = moveStations.find(
+                                  (candidate) => candidate.id === moveStationId,
+                                );
+                                await api("/sessions/" + session.id + "/move", {
+                                  stationId: moveStationId,
+                                });
+                                setNotice(
+                                  "Sesión movida a " +
+                                    (target?.name ?? "la nueva estación") +
+                                    ". Se conservaron el tiempo y los consumos.",
+                                );
+                                setSelected(moveStationId);
+                                setMoveStationId("");
+                              })
+                            }
+                          >
+                            Mover sesión
+                          </Button>
+                        </div>
+                      )}
                       {session.mode === "FIXED" &&
                         !session.payments?.length && (
                           <div className="prepay-box">

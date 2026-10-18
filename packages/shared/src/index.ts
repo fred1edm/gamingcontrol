@@ -103,6 +103,9 @@ export const sessionSaveInput = z.object({
 export const sessionResumeInput = z.object({
   stationId: z.string().uuid().optional(),
 });
+export const sessionMoveInput = z.object({
+  stationId: z.string().uuid(),
+});
 export const cashOpenInput = z.object({ openingAmount: money });
 export const cashCloseInput = z.object({ closingAmount: money });
 export const cashMovementInput = z.object({

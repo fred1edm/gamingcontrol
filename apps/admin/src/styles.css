@@ -1259,6 +1259,28 @@ details pre {
 .session-control-actions button {
   min-width: 0;
 }
+.move-station {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid #43d9ee20;
+  border-radius: 10px;
+  background: #43d9ee05;
+}
+.move-station label {
+  margin: 0;
+}
+.move-station small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.move-station button {
+  white-space: nowrap;
+}
 .prepay-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1865,6 +1887,9 @@ details pre {
     overflow-y: auto;
   }
   .session-actions {
+    grid-template-columns: 1fr;
+  }
+  .move-station {
     grid-template-columns: 1fr;
   }
   .footnote {
