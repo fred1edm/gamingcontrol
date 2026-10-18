@@ -184,7 +184,7 @@ function duration(s: SessionView, now: number) {
 }
 export function App() {
   const [token, setToken] = useState(
-    () => sessionStorage.getItem("gaming-token") ?? "",
+    () => localStorage.getItem("gaming-token") ?? "",
   );
   const [user, setUser] = useState<UserView | null>(null),
     [page, setPage] = useState<Page>("stations");
@@ -287,7 +287,7 @@ export function App() {
     });
   }, [settings.sound]);
   const logout = useCallback(() => {
-    sessionStorage.removeItem("gaming-token");
+    localStorage.removeItem("gaming-token");
     setToken("");
     setUser(null);
     setStations([]);
@@ -594,7 +594,7 @@ export function App() {
               password: f.get("password"),
             })
               .then((r) => {
-                sessionStorage.setItem("gaming-token", r.token);
+                localStorage.setItem("gaming-token", r.token);
                 setToken(r.token);
                 setUser(r.user);
               })
