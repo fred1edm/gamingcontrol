@@ -654,7 +654,6 @@ export async function buildApp(
       >(),
       byHour = new Map<number, number>(),
       byDay = new Map<string, number>(),
-      byWeek = new Map<string, number>(),
       sessions = new Map<string, number>();
     const promotions = {
       freeHours: 0,
@@ -699,8 +698,6 @@ export async function buildApp(
       const local = new Date(payment.createdAt.getTime() - 5 * 60 * 60 * 1000);
       const dayKey = local.toISOString().slice(0, 10);
       byDay.set(dayKey, (byDay.get(dayKey) ?? 0) + payment.amountCents);
-      const weekKey = reportWeekStart(dayKey);
-      byWeek.set(weekKey, (byWeek.get(weekKey) ?? 0) + payment.amountCents);
       if (payment.session) {
         const target = payment.session;
         sessionRevenueCents += payment.amountCents;
@@ -743,6 +740,26 @@ export async function buildApp(
       [...byStation.values()].sort(
         (a, b) => b.amountCents - a.amountCents,
       )[0] ?? null;
+    const totalsByDay: { day: string; amountCents: number }[] = [];
+    const totalsByWeekMap = new Map<string, number>();
+    for (
+      let cursor = from;
+      cursor < to;
+      cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+    ) {
+      const day = new Date(
+        cursor.getTime() - REPORT_OFFSET_HOURS * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      const amountCents = byDay.get(day) ?? 0;
+      totalsByDay.push({ day, amountCents });
+      const weekStart = reportWeekStart(day);
+      totalsByWeekMap.set(
+        weekStart,
+        (totalsByWeekMap.get(weekStart) ?? 0) + amountCents,
+      );
+    }
     return {
       period,
       from: from.toISOString(),
@@ -777,10 +794,8 @@ export async function buildApp(
       demandByHour: [...byHour.entries()]
         .map(([hour, count]) => ({ hour, count }))
         .sort((a, b) => a.hour - b.hour),
-      totalsByDay: [...byDay.entries()]
-        .map(([day, amountCents]) => ({ day, amountCents }))
-        .sort((a, b) => a.day.localeCompare(b.day)),
-      totalsByWeek: [...byWeek.entries()]
+      totalsByDay,
+      totalsByWeek: [...totalsByWeekMap.entries()]
         .map(([weekStart, amountCents]) => ({ weekStart, amountCents }))
         .sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
       shift,
