@@ -361,6 +361,10 @@ export function App() {
     { id: string; title: string; message: string; createdAt: string }[]
   >([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [desktopNotificationPermission, setDesktopNotificationPermission] =
+    useState<NotificationPermission>(() =>
+      typeof Notification === "undefined" ? "default" : Notification.permission,
+    );
   const [cash, setCash] = useState<{
     register: {
       id: string;
@@ -436,6 +440,40 @@ export function App() {
       // El navegador puede bloquear audio hasta una interacción del usuario.
     });
   }, [settings.sound]);
+  const requestDesktopNotifications = useCallback(async () => {
+    if (typeof Notification === "undefined") {
+      setNotice("Este navegador no admite notificaciones de escritorio.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setDesktopNotificationPermission(permission);
+    setNotice(
+      permission === "granted"
+        ? "Notificaciones de escritorio activadas."
+        : "El navegador no autorizó las notificaciones de escritorio.",
+    );
+  }, []);
+  const showDesktopNotification = useCallback((item: {
+    id: string;
+    title: string;
+    message: string;
+  }) => {
+    if (
+      typeof Notification === "undefined" ||
+      Notification.permission !== "granted" ||
+      document.visibilityState !== "hidden"
+    )
+      return;
+    const notification = new Notification(item.title, {
+      body: item.message,
+      icon: "/gorilaz-logo.png",
+      tag: item.id,
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  }, []);
   const logout = useCallback(() => {
     localStorage.removeItem("gaming-token");
     setToken("");
@@ -580,13 +618,14 @@ export function App() {
       );
       setNotice(next.message);
       playNotificationSound();
+      showDesktopNotification(next);
     });
     return () => {
       reloadEvents.forEach((name) => socket.off(name, reload));
       socket.close();
       setRealtimeConnected(false);
     };
-  }, [token, refresh, playNotificationSound]);
+  }, [token, refresh, playNotificationSound, showDesktopNotification]);
   useEffect(() => {
     const timer = setInterval(
       () =>
@@ -2369,6 +2408,27 @@ export function App() {
               >
                 <h2>Avisos de tiempo</h2>
                 <p>El sistema avisa y emite un sonido antes del vencimiento.</p>
+                <div className="desktop-notification-setting">
+                  <div>
+                    <strong>Notificación con la ventana minimizada</strong>
+                    <small>
+                      Muestra la estación y los minutos restantes aunque estés
+                      usando otra página.
+                    </small>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void requestDesktopNotifications()}
+                    disabled={desktopNotificationPermission === "granted"}
+                  >
+                    {desktopNotificationPermission === "granted"
+                      ? "Activadas"
+                      : desktopNotificationPermission === "denied"
+                        ? "Bloqueadas en el navegador"
+                        : "Activar notificaciones"}
+                  </Button>
+                </div>
                 <label>
                   Primer aviso (minutos)
                   <input

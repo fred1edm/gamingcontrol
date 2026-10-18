@@ -1347,6 +1347,28 @@ details pre {
 .prepay-box button {
   white-space: nowrap;
 }
+.desktop-notification-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid #8fc3fa20;
+  border-radius: 10px;
+  background: #8fc3fa05;
+}
+.desktop-notification-setting > div {
+  display: grid;
+  gap: 4px;
+}
+.desktop-notification-setting small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.desktop-notification-setting button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .payment-fields {
   display: grid;
   gap: 8px;
