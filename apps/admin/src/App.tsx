@@ -2757,9 +2757,6 @@ export function App() {
                                 </option>
                               ))}
                             </select>
-                            <small>
-                              Conserva el tiempo, bebidas/snacks, mandos y pagos registrados.
-                            </small>
                           </label>
                           <Button
                             variant="outline"
