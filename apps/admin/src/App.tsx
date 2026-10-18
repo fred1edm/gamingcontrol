@@ -468,6 +468,7 @@ export function App() {
       body: item.message,
       icon: "/gorilaz-logo.png",
       tag: item.id,
+      requireInteraction: true,
     });
     notification.onclick = () => {
       window.focus();
@@ -2412,8 +2413,8 @@ export function App() {
                   <div>
                     <strong>Notificación con la ventana minimizada</strong>
                     <small>
-                      Muestra la estación y los minutos restantes aunque estés
-                      usando otra página.
+                      Se queda visible sobre otras ventanas hasta que la
+                      atiendas y abre el panel al hacer clic.
                     </small>
                   </div>
                   <Button
