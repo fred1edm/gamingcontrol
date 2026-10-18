@@ -2428,7 +2428,6 @@ export function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="drawer-head">
-              <span className="eyebrow">DETALLE DE ESTACIÓN</span>
               <Button
                 variant="ghost"
                 aria-label="Cerrar detalle"
