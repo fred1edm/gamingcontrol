@@ -1128,9 +1128,11 @@ details pre {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   grid-template-rows: auto auto auto 1fr;
-  column-gap: 28px;
+  column-gap: 22px;
   align-content: start;
   overflow: hidden;
+  height: min(860px, calc(100vh - 24px));
+  padding: 20px 24px;
 }
 .drawer-session > .drawer-head,
 .drawer-session > .drawer-title,
@@ -1146,6 +1148,12 @@ details pre {
   grid-row: 3 / -1;
   align-self: start;
   margin-top: 0;
+}
+.drawer-session > .drawer-head {
+  margin-bottom: 12px;
+}
+.drawer-session > .drawer-title {
+  margin-bottom: 12px;
 }
 .session-summary h3 {
   margin-top: 26px;
@@ -1279,9 +1287,9 @@ details pre {
 .session-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 8px;
   align-items: end;
-  margin-top: 20px;
+  margin-top: 8px;
 }
 .session-actions > h3,
 .session-actions > .duration-options,
@@ -1302,10 +1310,10 @@ details pre {
 .move-station {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: end;
   grid-column: 1 / -1;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid #43d9ee20;
   border-radius: 10px;
   background: #43d9ee05;
@@ -1315,7 +1323,8 @@ details pre {
 }
 .move-station small {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
+  line-height: 1.25;
   color: var(--muted);
 }
 .move-station button {
@@ -1324,10 +1333,10 @@ details pre {
 .prepay-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: end;
   grid-column: 1 / -1;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid #8fc3fa20;
   border-radius: 10px;
   background: #8fc3fa05;
@@ -1339,15 +1348,18 @@ details pre {
   white-space: nowrap;
 }
 .session-actions > h3 {
-  margin: 4px 0 -2px;
+  margin: 0;
 }
 .session-actions .add-extra {
   margin-top: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 124px 44px;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   grid-column: 1 / -1;
+}
+.drawer-session .session-actions > .w-full.mt-6 {
+  margin-top: 8px;
 }
 .session-actions .add-extra.product-add {
   grid-template-columns: minmax(0, 1fr) 44px;
