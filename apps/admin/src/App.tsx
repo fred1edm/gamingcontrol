@@ -2809,7 +2809,7 @@ export function App() {
                                     method: paymentMethod,
                                   });
                                   setNotice(
-                                    "Pago anticipado registrado. Puedes guardar la hora o seguir alquilando.",
+                                    "Pago anticipado registrado. Puedes seguir alquilando o mover la sesión a otra estación.",
                                   );
                                 })
                               }
