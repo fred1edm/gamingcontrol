@@ -266,6 +266,8 @@ export function App() {
   const [editUser, setEditUser] = useState<UserView | null>(null);
   const [resetUser, setResetUser] = useState<UserView | null>(null);
   const [editProduct, setEditProduct] = useState<ProductView | null>(null);
+  const [stockMovementProduct, setStockMovementProduct] =
+    useState<ProductView | null>(null);
   const [editLoyaltyCard, setEditLoyaltyCard] =
     useState<LoyaltyCardView | null>(null);
   const [deleteLoyaltyCard, setDeleteLoyaltyCard] =
@@ -1455,6 +1457,15 @@ export function App() {
                         />
                         <Button variant="outline">+ stock</Button>
                       </form>
+                      {user?.role === "ADMIN" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setStockMovementProduct(product)}
+                        >
+                          Ajustar stock
+                        </Button>
+                      )}
                       {user?.role === "ADMIN" && (
                         <Button
                           variant="destructive"
@@ -3433,6 +3444,93 @@ export function App() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+      {stockMovementProduct && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setStockMovementProduct(null)}
+        >
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Ajustar stock de ${stockMovementProduct.name}`}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = new FormData(e.currentTarget);
+              const type = String(form.get("type"));
+              const quantity = Number(form.get("quantity"));
+              void run(async () => {
+                await api(`/products/${stockMovementProduct.id}/stock`, {
+                  type,
+                  quantity,
+                  reason: form.get("reason"),
+                });
+                setStockMovementProduct(null);
+                setNotice(
+                  `Movimiento de stock registrado para ${stockMovementProduct.name}.`,
+                );
+              });
+            }}
+          >
+            <div className="drawer-head">
+              <h2>Ajustar stock</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Cerrar"
+                onClick={() => setStockMovementProduct(null)}
+              >
+                <X />
+              </Button>
+            </div>
+            <p className="modal-help">
+              {stockMovementProduct.name} tiene{" "}
+              {stockMovementProduct.stockCurrent} unidades. Escribe siempre una
+              cantidad positiva; el tipo define si suma o resta.
+            </p>
+            <label>
+              Tipo de movimiento
+              <select name="type" defaultValue="ADJUSTMENT">
+                <option value="ADJUSTMENT">Ajuste · restar stock</option>
+                <option value="LOSS">Pérdida · restar stock</option>
+                <option value="RETURN">Devolución · sumar stock</option>
+              </select>
+            </label>
+            <label>
+              Cantidad
+              <input
+                name="quantity"
+                type="number"
+                min="1"
+                max="1000000"
+                required
+                defaultValue="1"
+              />
+            </label>
+            <label>
+              Motivo
+              <input
+                name="reason"
+                minLength={2}
+                maxLength={240}
+                required
+                placeholder="Ej. Se registró una cantidad incorrecta"
+              />
+            </label>
+            <div className="confirm-actions">
+              <Button disabled={busy}>Guardar movimiento</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStockMovementProduct(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
         </div>
       )}
       {editProduct && (
