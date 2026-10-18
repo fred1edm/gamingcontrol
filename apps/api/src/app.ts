@@ -1687,8 +1687,14 @@ export async function buildApp(
         });
         if (!target?.active)
           throw new ApiError(404, "Estación de destino no encontrada");
-        if (target.type !== old.station.type)
-          throw new ApiError(409, "Solo puedes mover la sesión a una estación del mismo tipo");
+        const consoleMove =
+          ["PS4", "PS5"].includes(old.station.type) &&
+          ["PS4", "PS5"].includes(target.type);
+        if (target.type !== old.station.type && !consoleMove)
+          throw new ApiError(
+            409,
+            "Solo puedes mover entre estaciones del mismo tipo; PS4 y PS5 son compatibles entre sí",
+          );
         if (
           target.status !== "AVAILABLE" ||
           (await tx.session.findFirst({

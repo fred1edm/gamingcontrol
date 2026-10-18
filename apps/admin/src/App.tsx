@@ -733,7 +733,9 @@ export function App() {
     ? stations.filter(
         (candidate) =>
           candidate.id !== station?.id &&
-          candidate.type === station.type &&
+          (candidate.type === station.type ||
+            (["PS4", "PS5"].includes(candidate.type) &&
+              ["PS4", "PS5"].includes(station.type))) &&
           candidate.status === "AVAILABLE",
       )
     : [];
@@ -2969,7 +2971,7 @@ export function App() {
                               </option>
                               {moveStations.map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
-                                  {candidate.name}
+                                  {candidate.name} · {candidate.type}
                                 </option>
                               ))}
                             </select>
