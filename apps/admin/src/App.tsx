@@ -183,9 +183,16 @@ function duration(s: SessionView, now: number) {
     .join(":");
 }
 export function App() {
-  const [token, setToken] = useState(
-    () => localStorage.getItem("gaming-token") ?? "",
-  );
+  const [token, setToken] = useState(() => {
+    const saved = localStorage.getItem("gaming-token");
+    if (saved) return saved;
+    const legacy = sessionStorage.getItem("gaming-token");
+    if (legacy) {
+      localStorage.setItem("gaming-token", legacy);
+      sessionStorage.removeItem("gaming-token");
+    }
+    return legacy ?? "";
+  });
   const [user, setUser] = useState<UserView | null>(null),
     [page, setPage] = useState<Page>("stations");
   const [stations, setStations] = useState<StationView[]>([]),
