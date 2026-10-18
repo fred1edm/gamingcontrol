@@ -32,6 +32,7 @@ import {
   IconPencil as Pencil,
   IconKey as Key,
   IconGift as Gift,
+  IconTrash as Trash2,
 } from "@tabler/icons-react";
 import type {
   ExtraView,
@@ -250,6 +251,10 @@ export function App() {
   const [editUser, setEditUser] = useState<UserView | null>(null);
   const [resetUser, setResetUser] = useState<UserView | null>(null);
   const [editProduct, setEditProduct] = useState<ProductView | null>(null);
+  const [editLoyaltyCard, setEditLoyaltyCard] =
+    useState<LoyaltyCardView | null>(null);
+  const [deleteLoyaltyCard, setDeleteLoyaltyCard] =
+    useState<LoyaltyCardView | null>(null);
   const [chosenProduct, setChosenProduct] = useState("");
   const [chosenLoyaltyCard, setChosenLoyaltyCard] = useState("");
   const [chosenLoyaltyStation, setChosenLoyaltyStation] = useState("");
@@ -1598,6 +1603,24 @@ export function App() {
                                 ? "Hora gratis disponible"
                                 : "En progreso"}
                           </span>
+                          <div className="loyalty-card-tools">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              aria-label={`Editar nombre de ${card.customerName}`}
+                              onClick={() => setEditLoyaltyCard(card)}
+                            >
+                              <Pencil size={16} />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              aria-label={`Eliminar tarjeta de ${card.customerName}`}
+                              onClick={() => setDeleteLoyaltyCard(card)}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
                         </div>
                         <div className="stamp-track" aria-label={`${card.stampCount} de 12 sellos`}>
                           <div className="stamp-row">
@@ -3192,6 +3215,127 @@ export function App() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+      {editLoyaltyCard && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setEditLoyaltyCard(null)}
+        >
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Editar ${editLoyaltyCard.customerName}`}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = new FormData(e.currentTarget);
+              void run(async () => {
+                await api(
+                  `/loyalty/cards/${editLoyaltyCard.id}`,
+                  { customerName: form.get("customerName") },
+                  "PATCH",
+                );
+                setEditLoyaltyCard(null);
+                setNotice("Nombre de tarjeta actualizado.");
+              });
+            }}
+          >
+            <div className="drawer-head">
+              <h2>Editar tarjeta</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Cerrar"
+                onClick={() => setEditLoyaltyCard(null)}
+              >
+                <X />
+              </Button>
+            </div>
+            <p className="modal-help">
+              Actualiza el nombre sin modificar sellos, premios ni canjes.
+            </p>
+            <label>
+              Nombre del cliente
+              <input
+                name="customerName"
+                defaultValue={editLoyaltyCard.customerName}
+                minLength={2}
+                maxLength={80}
+                autoFocus
+                required
+              />
+            </label>
+            <div className="confirm-actions">
+              <Button disabled={busy}>Guardar cambios</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditLoyaltyCard(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+      {deleteLoyaltyCard && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setDeleteLoyaltyCard(null)}
+        >
+          <div
+            className="modal confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-loyalty-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="drawer-head">
+              <span className="eyebrow">ELIMINAR TARJETA</span>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Cerrar"
+                onClick={() => setDeleteLoyaltyCard(null)}
+              >
+                <X />
+              </Button>
+            </div>
+            <h2 id="delete-loyalty-title">¿Eliminar tarjeta?</h2>
+            <p>
+              <strong>{deleteLoyaltyCard.customerName}</strong> dejará de
+              aparecer en Tarjetas. Sus sellos, premios y canjes históricos se
+              conservarán.
+            </p>
+            <div className="confirm-actions">
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await api(
+                      `/loyalty/cards/${deleteLoyaltyCard.id}`,
+                      {},
+                      "DELETE",
+                    );
+                    setDeleteLoyaltyCard(null);
+                    setNotice("Tarjeta eliminada; su historial se conservó.");
+                  })
+                }
+              >
+                Eliminar tarjeta
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteLoyaltyCard(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
         </div>
       )}
       {editProduct && (

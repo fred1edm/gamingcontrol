@@ -272,6 +272,9 @@ export type LoyaltyCardView = {
 export const loyaltyStampInput = z.object({
   quantity: z.number().int().min(1).max(12).default(1),
 });
+export const loyaltyCardUpdateInput = z.object({
+  customerName: z.string().trim().min(2).max(80),
+});
 export const loyaltyRedeemInput = z.object({
   rewardType: z.enum(["FREE_HOUR", "SNACK_KIT"]),
   stationId: z.string().uuid().optional(),

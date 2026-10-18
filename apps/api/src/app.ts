@@ -29,6 +29,7 @@ import {
   sessionMoveInput,
   sessionCancelInput,
   loyaltyStampInput,
+  loyaltyCardUpdateInput,
   loyaltyRedeemInput,
   notificationSoundValues,
   events,
@@ -887,6 +888,45 @@ export async function buildApp(
       await audit(tx, req, "LOYALTY_CARD_CREATED", "LoyaltyCard", card.id, null, card);
       return card;
     });
+  });
+  app.patch("/loyalty/cards/:id", async (req) => {
+    const id = idOf(req),
+      input = loyaltyCardUpdateInput.parse(req.body ?? {});
+    return mutate(req, async (tx) => {
+      const old = await tx.loyaltyCard.findUnique({ where: { id } });
+      if (!old?.active)
+        throw new ApiError(404, "Tarjeta de fidelización no encontrada");
+      const updated = await tx.loyaltyCard.update({
+        where: { id },
+        data: { customerName: input.customerName },
+        include: loyaltyCardInclude,
+      });
+      await audit(tx, req, "LOYALTY_CARD_UPDATED", "LoyaltyCard", id, old, updated);
+      return updated;
+    }, events.loyaltyUpdated);
+  });
+  app.delete("/loyalty/cards/:id", async (req) => {
+    const id = idOf(req);
+    return mutate(req, async (tx) => {
+      const old = await tx.loyaltyCard.findUnique({ where: { id } });
+      if (!old?.active)
+        throw new ApiError(404, "Tarjeta de fidelización no encontrada");
+      const updated = await tx.loyaltyCard.update({
+        where: { id },
+        data: { active: false },
+        include: loyaltyCardInclude,
+      });
+      await audit(
+        tx,
+        req,
+        "LOYALTY_CARD_DEACTIVATED",
+        "LoyaltyCard",
+        id,
+        old,
+        updated,
+      );
+      return updated;
+    }, events.loyaltyUpdated);
   });
   app.post("/loyalty/cards/:id/stamps", async (req) => {
     const id = idOf(req);

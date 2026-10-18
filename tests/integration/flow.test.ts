@@ -36,7 +36,7 @@ function write(
   body: unknown,
   key = randomUUID(),
   auth = token,
-  method: "POST" | "PATCH" | "PUT" = "POST",
+  method: "POST" | "PATCH" | "PUT" | "DELETE" = "POST",
 ) {
   return app.inject({
     method,
@@ -299,6 +299,37 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     assert.equal(finishedFree.statusCode, 200);
     assert.equal(finishedFree.json<{ status: string }>().status, "CLOSED");
     assert.equal((await read("/loyalty/cards", employeeToken)).statusCode, 200);
+  });
+  await t.test("tarjetas permiten editar nombre y desactivar sin borrar historial", async () => {
+    const updated = await write(
+      `/loyalty/cards/${loyaltyCardId}`,
+      { customerName: `TEST Cliente Editado ${tag}` },
+      randomUUID(),
+      employeeToken,
+      "PATCH",
+    );
+    assert.equal(updated.statusCode, 200);
+    assert.equal(
+      updated.json<{ customerName: string }>().customerName,
+      `TEST Cliente Editado ${tag}`,
+    );
+    const removed = await write(
+      `/loyalty/cards/${loyaltyCardId}`,
+      {},
+      randomUUID(),
+      employeeToken,
+      "DELETE",
+    );
+    assert.equal(removed.statusCode, 200);
+    assert.equal(removed.json<{ active: boolean }>().active, false);
+    const activeCards = (await read("/loyalty/cards", employeeToken)).json<
+      { id: string }[]
+    >();
+    assert.equal(activeCards.some((card) => card.id === loyaltyCardId), false);
+    assert.equal(
+      await db.loyaltyRedemption.count({ where: { cardId: loyaltyCardId } }),
+      2,
+    );
   });
   await t.test(
     "ADMIN puede editar trabajadores y restablecer contraseñas",

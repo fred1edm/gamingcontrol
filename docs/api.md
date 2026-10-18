@@ -24,6 +24,8 @@ Errores JSON: `{message, issues?}`; 400 datos inválidos, 401 autenticación, 40
 | POST /sessions/:id/extras | Autenticado       | extraId, quantity 1–4; PS4/PS5, acumulable hasta 4 mandos por sesión              |
 | POST /sessions/:id/move   | Autenticado       | stationId; estación disponible del mismo tipo, conserva tiempo y consumos         |
 | POST /sessions/:id/cancel | Autenticado       | reason (3–240 caracteres); cancela sin cobro y conserva el motivo en historial |
+| PATCH /loyalty/cards/:id  | Autenticado       | customerName; edita el nombre de una tarjeta activa                              |
+| DELETE /loyalty/cards/:id | Autenticado       | Desactiva la tarjeta y conserva sellos, canjes e historial                       |
 | POST /sessions/:id/finish | Autenticado       | {}; termina tiempo, queda pendiente de pago                                       |
 | GET /audit                | ADMIN             | Últimas acciones; filtros `action`, `entityType`, `userId`, `from`, `to`, `limit` |
 

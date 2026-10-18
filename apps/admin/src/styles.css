@@ -837,6 +837,16 @@ tbody tr:hover {
   align-items: flex-start;
   gap: 16px;
 }
+.loyalty-card-tools {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.loyalty-card-tools button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 6px;
+}
 .loyalty-card-head strong {
   display: block;
   font-size: 16px;
@@ -1404,6 +1414,11 @@ details pre {
   margin-bottom: 12px;
 }
 .confirm-modal > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.modal-help {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.7;

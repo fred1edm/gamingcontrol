@@ -249,3 +249,7 @@ Se añadió `POST /sessions/:id/move` para trasladar una sesión activa a una es
 
 La cancelación ahora exige un motivo, lo guarda en `Session.cancelReason` y lo registra en auditoría. Historial diferencia «Cancelada · Sin cobro» de «Pendiente de pago» y muestra el motivo. La migración `202610170001_session_cancel_reason` añade el campo sin alterar sesiones existentes.
 
+## loyalty_card_management_update
+
+Tarjetas incorpora edición de nombre (`PATCH /loyalty/cards/:id`) y eliminación lógica (`DELETE /loyalty/cards/:id`). La UI usa modales y conserva sellos, premios, canjes e historial; ambas acciones generan auditoría y evento `loyalty:updated`.
+
