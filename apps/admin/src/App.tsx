@@ -240,6 +240,7 @@ export function App() {
     } | null;
   }>({ register: null });
   const [selected, setSelected] = useState<string | null>(null),
+    [continuePaidSessionId, setContinuePaidSessionId] = useState<string | null>(null),
     [filter, setFilter] = useState("ALL"),
     [search, setSearch] = useState("");
   const [error, setError] = useState(""),
@@ -303,6 +304,7 @@ export function App() {
     setUser(null);
     setStations([]);
     setSelected(null);
+    setContinuePaidSessionId(null);
     setConnected(false);
     setRealtimeConnected(false);
     setNotifications([]);
@@ -523,6 +525,14 @@ export function App() {
   }
   const station = stations.find((s) => s.id === selected),
     session = station?.session;
+  const sessionPaidAmount =
+    session?.payments?.reduce((sum, payment) => sum + payment.amountCents, 0) ??
+    0;
+  const sessionBalance = session
+    ? Math.max(0, session.totalAmount - sessionPaidAmount)
+    : 0;
+  const continuePaidSession = session?.id === continuePaidSessionId;
+  const sessionCanAdd = !session?.payments?.length || continuePaidSession;
   const available = stations.filter((s) => s.status === "AVAILABLE").length,
     availableStations = stations.filter((s) => s.status === "AVAILABLE"),
     occupied = stations.filter(
@@ -539,6 +549,7 @@ export function App() {
     : [];
   const openStation = (id: string) => {
     setSelected(id);
+    setContinuePaidSessionId(null);
     setConfirmFinish(false);
     setMinutes(60);
     setWithExtra(false);
@@ -2671,7 +2682,7 @@ export function App() {
                   {!session.finishedAt && session.status !== "PAUSED" ? (
                     <>
                       {session.mode === "FIXED" &&
-                        !session.payments?.length && (
+                        sessionCanAdd && (
                           <>
                             <h3>Agregar tiempo</h3>
                             <div className="duration-options">
@@ -2798,7 +2809,7 @@ export function App() {
                                     method: paymentMethod,
                                   });
                                   setNotice(
-                                    "Pago anticipado registrado. Puedes guardar la hora cuando el cliente se retire.",
+                                    "Pago anticipado registrado. Puedes guardar la hora o seguir alquilando.",
                                   );
                                 })
                               }
@@ -2809,26 +2820,42 @@ export function App() {
                         )}
                       {session.mode === "FIXED" &&
                         !!session.payments?.length && (
-                          <Button
-                            variant="outline"
-                            disabled={busy || !connected}
-                            onClick={() =>
-                              void run(async () => {
-                                const saved = await api<SessionView>(
-                                  `/sessions/${session.id}/save`,
-                                  {},
-                                );
-                                setNotice(
-                                  `Hora guardada. Código de validación: ${saved.savedCode ?? "—"}`,
-                                );
-                                setSelected(null);
-                              })
-                            }
-                          >
-                            Guardar hora restante
-                          </Button>
+                          <>
+                            {!continuePaidSession && (
+                              <Button
+                                variant="outline"
+                                disabled={busy || !connected}
+                                onClick={() => {
+                                  setContinuePaidSessionId(session.id);
+                                  setNotice(
+                                    "La sesión continúa activa. Puedes agregar tiempo, mandos o productos; se cobrará el saldo al finalizar.",
+                                  );
+                                }}
+                              >
+                                Seguir alquilando
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              disabled={busy || !connected}
+                              onClick={() =>
+                                void run(async () => {
+                                  const saved = await api<SessionView>(
+                                    `/sessions/${session.id}/save`,
+                                    {},
+                                  );
+                                  setNotice(
+                                    `Hora guardada. Código de validación: ${saved.savedCode ?? "—"}`,
+                                  );
+                                  setSelected(null);
+                                })
+                              }
+                            >
+                              Guardar hora restante
+                            </Button>
+                          </>
                         )}
-                      {!session.payments?.length &&
+                      {sessionCanAdd &&
                         station.type !== "PC" &&
                         extras.some((e) => {
                           const current = session.extras.find(
@@ -2986,8 +3013,9 @@ export function App() {
                         <p>
                           <strong>Pendiente de pago</strong>
                           <br />
-                          El historial está guardado. Registra el pago para
-                          liberar la estación.
+                          {sessionPaidAmount > 0
+                            ? `Saldo pendiente: ${currency(sessionBalance)}.`
+                            : "El historial está guardado. Registra el pago para liberar la estación."}
                         </p>
                       </div>
                       <label>
@@ -3017,13 +3045,13 @@ export function App() {
                           })
                         }
                       >
-                        Registrar pago · {currency(session.totalAmount)}
+                        Registrar pago · {currency(sessionBalance)}
                       </Button>
                     </>
                   )}
                   {!session.finishedAt &&
                     session.status !== "PAUSED" &&
-                    !session.payments?.length &&
+                    sessionCanAdd &&
                     products.length > 0 && (
                       <div className="add-extra product-add">
                         <label>

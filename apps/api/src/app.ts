@@ -65,6 +65,9 @@ const details = {
   station: { select: { name: true, type: true } },
 };
 type SessionDetail = Prisma.SessionGetPayload<{ include: typeof details }>;
+function paidAmount(s: { payments: { amountCents: number }[] }) {
+  return s.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+}
 function view(s: SessionDetail, now: Date) {
   const openMeasuredAt =
     s.mode === "OPEN" && s.status === "PAUSED" && s.pausedAt
@@ -396,18 +399,12 @@ export async function buildApp(
     if (input.sessionId) {
       const target = await tx.session.findUnique({
         where: { id: input.sessionId },
-        include: { payments: { select: { id: true } } },
       });
       if (
         !target ||
         ["CLOSED", "CANCELLED", "PAUSED", "SAVED"].includes(target.status)
       )
         throw new ApiError(404, "Sesión no disponible");
-      if (target.payments.length)
-        throw new ApiError(
-          409,
-          "La sesión ya fue pagada; no admite nuevos productos",
-        );
     }
     const items: {
       productId: string;
@@ -514,14 +511,16 @@ export async function buildApp(
     if (target.sessionId) {
       const session = await tx.session.findUnique({
         where: { id: target.sessionId },
-        include: { sales: true },
+        include: { sales: true, payments: true },
       });
       if (!session || session.status !== "TIME_FINISHED" || !session.finishedAt)
         throw new ApiError(
           409,
           "La sesión debe estar finalizada antes de cobrar",
         );
-      amountCents = session.totalAmount;
+      amountCents = session.totalAmount - paidAmount(session);
+      if (amountCents <= 0)
+        throw new ApiError(409, "La sesión ya está pagada por completo");
       const payment = await tx.payment.create({
         data: {
           sessionId: session.id,
@@ -1571,11 +1570,6 @@ export async function buildApp(
     return mutate(req, async (tx) => {
       const old = await session(tx, id);
       editable(old);
-      if (old.payments.length)
-        throw new ApiError(
-          409,
-          "La sesión ya fue pagada; no admite más tiempo",
-        );
       if (old.mode === "OPEN" || !old.endsAt)
         throw new ApiError(409, "Las sesiones libres no necesitan extensiones");
       const amount = priceForBlocks(
@@ -1610,11 +1604,6 @@ export async function buildApp(
     return mutate(req, async (tx) => {
       const old = await session(tx, id);
       editable(old);
-      if (old.payments.length)
-        throw new ApiError(
-          409,
-          "La sesión ya fue pagada; no admite nuevos extras",
-        );
       const station = await tx.station.findUnique({
         where: { id: old.stationId },
         select: { type: true },
@@ -1705,15 +1694,16 @@ export async function buildApp(
       editable(old);
       const now = new Date();
       const computed = view(old, now);
+      const fullyPaid = paidAmount(old) >= computed.totalAmount;
       const closesFreeHour = !old.payments.length && computed.totalAmount === 0;
       const updated = await tx.session.update({
         where: { id },
         data: {
-          status: old.payments.length || closesFreeHour ? "CLOSED" : "TIME_FINISHED",
+          status: fullyPaid || closesFreeHour ? "CLOSED" : "TIME_FINISHED",
           finishedAt: now,
           baseAmount: computed.baseAmount,
           totalAmount: computed.totalAmount,
-          ...(old.payments.length || closesFreeHour
+          ...(fullyPaid || closesFreeHour
             ? { closedAt: now, closedBy: actor(req).id }
             : {}),
         },
@@ -1721,12 +1711,12 @@ export async function buildApp(
       });
       await tx.station.update({
         where: { id: old.stationId },
-        data: { status: old.payments.length || closesFreeHour ? "AVAILABLE" : "FINISHED" },
+        data: { status: fullyPaid || closesFreeHour ? "AVAILABLE" : "FINISHED" },
       });
       await audit(
         tx,
         req,
-        old.payments.length
+        fullyPaid && old.payments.length
           ? "SESSION_FINISHED_PREPAID"
           : closesFreeHour
             ? "SESSION_FINISHED_FREE_HOUR"

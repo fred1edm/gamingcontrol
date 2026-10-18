@@ -50,10 +50,15 @@ async function finishExpiredSession(session: {
   id: string;
   stationId: string;
   station: { name: string };
-  payments: { id: string }[];
+  payments: { amountCents: number }[];
   totalAmount: number;
 }) {
   const now = new Date();
+  const paidAmount = session.payments.reduce(
+    (sum, payment) => sum + payment.amountCents,
+    0,
+  );
+  const fullyPaid = paidAmount >= session.totalAmount;
   const result = await db.$transaction(async (tx) => {
     const updated = await tx.session.updateMany({
       where: {
@@ -62,15 +67,15 @@ async function finishExpiredSession(session: {
         finishedAt: null,
       },
       data: {
-        status: session.payments.length || session.totalAmount === 0 ? "CLOSED" : "TIME_FINISHED",
+        status: fullyPaid || session.totalAmount === 0 ? "CLOSED" : "TIME_FINISHED",
         finishedAt: now,
-        ...(session.payments.length || session.totalAmount === 0 ? { closedAt: now } : {}),
+        ...(fullyPaid || session.totalAmount === 0 ? { closedAt: now } : {}),
       },
     });
     if (!updated.count) return false;
     await tx.station.updateMany({
       where: { id: session.stationId, status: "IN_USE" },
-      data: { status: session.payments.length || session.totalAmount === 0 ? "AVAILABLE" : "FINISHED" },
+      data: { status: fullyPaid || session.totalAmount === 0 ? "AVAILABLE" : "FINISHED" },
     });
     return true;
   });
@@ -106,7 +111,7 @@ async function scanSessions() {
       },
       include: {
         station: { select: { name: true } },
-        payments: { select: { id: true } },
+        payments: { select: { amountCents: true } },
       },
     }),
   ]);
