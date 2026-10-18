@@ -2737,15 +2737,20 @@ export function App() {
                           Cancelar sesión
                         </Button>
                       </div>
-                      {moveStations.length > 0 && (
+                      {session && (
                         <div className="move-station">
                           <label>
                             Mover a otra estación
                             <select
                               value={moveStationId}
+                              disabled={!moveStations.length}
                               onChange={(e) => setMoveStationId(e.target.value)}
                             >
-                              <option value="">Seleccionar estación</option>
+                              <option value="">
+                                {moveStations.length
+                                  ? "Seleccionar estación"
+                                  : "No hay estaciones disponibles"}
+                              </option>
                               {moveStations.map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
                                   {candidate.name}
