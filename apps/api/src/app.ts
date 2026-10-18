@@ -108,8 +108,26 @@ const idOf = (req: FastifyRequest) =>
 const asJson = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 type ReportPeriod = "daily" | "weekly" | "monthly";
-function reportRange(period: ReportPeriod, now = new Date()) {
-  const shifted = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+type ReportShift = "all" | "morning" | "afternoon";
+const REPORT_OFFSET_HOURS = 5;
+function reportLocalDate(date?: string, now = new Date()) {
+  if (!date) return new Date(now.getTime() - REPORT_OFFSET_HOURS * 60 * 60 * 1000);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new ApiError(400, "La fecha del reporte no es válida");
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const candidate = new Date(Date.UTC(year, month, day, 12));
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month ||
+    candidate.getUTCDate() !== day
+  )
+    throw new ApiError(400, "La fecha del reporte no es válida");
+  return candidate;
+}
+function reportRange(period: ReportPeriod, date?: string, now = new Date()) {
+  const shifted = reportLocalDate(date, now);
   const year = shifted.getUTCFullYear();
   const month = shifted.getUTCMonth();
   const day = shifted.getUTCDate();
@@ -127,6 +145,25 @@ function reportRange(period: ReportPeriod, now = new Date()) {
         ? new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000)
         : new Date(Date.UTC(year, month + 1, 1, 5));
   return { from, to };
+}
+function reportShiftMatches(date: Date, shift: ReportShift) {
+  if (shift === "all") return true;
+  const localHour = new Date(
+    date.getTime() - REPORT_OFFSET_HOURS * 60 * 60 * 1000,
+  ).getUTCHours();
+  return shift === "morning"
+    ? localHour >= 10 && localHour < 15
+    : localHour >= 15 && localHour < 22;
+}
+function reportWeekStart(day: string) {
+  const parts = day.split("-").map(Number);
+  const year = parts[0] ?? 0;
+  const month = parts[1] ?? 1;
+  const date = parts[2] ?? 1;
+  const local = new Date(Date.UTC(year, month - 1, date, 12));
+  const weekday = local.getUTCDay() || 7;
+  local.setUTCDate(local.getUTCDate() - weekday + 1);
+  return local.toISOString().slice(0, 10);
 }
 export async function buildApp(
   db: PrismaClient,
@@ -564,9 +601,13 @@ export async function buildApp(
     if (!s) throw new ApiError(404, "Sesión no encontrada");
     return s;
   }
-  async function report(period: ReportPeriod) {
-    const { from, to } = reportRange(period);
-    const [payments, redemptions] = await Promise.all([
+  async function report(
+    period: ReportPeriod,
+    date?: string,
+    shift: ReportShift = "all",
+  ) {
+    const { from, to } = reportRange(period, date);
+    const [periodPayments, periodRedemptions] = await Promise.all([
       db.payment.findMany({
         where: { createdAt: { gte: from, lt: to } },
         include: {
@@ -585,6 +626,7 @@ export async function buildApp(
       db.loyaltyRedemption.findMany({
         where: { createdAt: { gte: from, lt: to } },
         select: {
+          createdAt: true,
           rewardType: true,
           promotionValueCents: true,
           sodaProductName: true,
@@ -592,6 +634,12 @@ export async function buildApp(
         },
       }),
     ]);
+    const payments = periodPayments.filter((payment) =>
+      reportShiftMatches(payment.createdAt, shift),
+    );
+    const redemptions = periodRedemptions.filter((redemption) =>
+      reportShiftMatches(redemption.createdAt, shift),
+    );
     let totalCents = 0,
       sessionRevenueCents = 0,
       pcCents = 0,
@@ -606,6 +654,7 @@ export async function buildApp(
       >(),
       byHour = new Map<number, number>(),
       byDay = new Map<string, number>(),
+      byWeek = new Map<string, number>(),
       sessions = new Map<string, number>();
     const promotions = {
       freeHours: 0,
@@ -650,6 +699,8 @@ export async function buildApp(
       const local = new Date(payment.createdAt.getTime() - 5 * 60 * 60 * 1000);
       const dayKey = local.toISOString().slice(0, 10);
       byDay.set(dayKey, (byDay.get(dayKey) ?? 0) + payment.amountCents);
+      const weekKey = reportWeekStart(dayKey);
+      byWeek.set(weekKey, (byWeek.get(weekKey) ?? 0) + payment.amountCents);
       if (payment.session) {
         const target = payment.session;
         sessionRevenueCents += payment.amountCents;
@@ -729,6 +780,10 @@ export async function buildApp(
       totalsByDay: [...byDay.entries()]
         .map(([day, amountCents]) => ({ day, amountCents }))
         .sort((a, b) => a.day.localeCompare(b.day)),
+      totalsByWeek: [...byWeek.entries()]
+        .map(([weekStart, amountCents]) => ({ weekStart, amountCents }))
+        .sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+      shift,
     };
   }
   function editable(s: SessionDetail) {
@@ -2064,7 +2119,13 @@ export async function buildApp(
     const period = z
       .enum(["daily", "weekly", "monthly"])
       .parse((req.params as { period: string }).period);
-    return report(period);
+    const query = z
+      .object({
+        date: z.string().optional(),
+        shift: z.enum(["all", "morning", "afternoon"]).default("all"),
+      })
+      .parse(req.query);
+    return report(period, query.date, query.shift);
   });
   app.get("/audit", async (req) => {
     admin(req);

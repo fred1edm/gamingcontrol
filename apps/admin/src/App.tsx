@@ -109,6 +109,8 @@ type ReportView = {
   topProducts: { name: string; quantity: number; amountCents: number }[];
   demandByHour: { hour: number; count: number }[];
   totalsByDay: { day: string; amountCents: number }[];
+  totalsByWeek: { weekStart: string; amountCents: number }[];
+  shift: "all" | "morning" | "afternoon";
   promotions: {
     freeHours: number;
     snackKits: number;
@@ -204,6 +206,12 @@ export function App() {
   const [reportPeriod, setReportPeriod] = useState<
     "daily" | "weekly" | "monthly"
   >("daily");
+  const [reportDate, setReportDate] = useState(() =>
+    new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  );
+  const [reportShift, setReportShift] = useState<
+    "all" | "morning" | "afternoon"
+  >("all");
   const [report, setReport] = useState<ReportView | null>(null);
   const [auditRows, setAuditRows] = useState<AuditView[]>([]);
   const [auditAction, setAuditAction] = useState("");
@@ -466,10 +474,12 @@ export function App() {
           }),
         )
         .catch((e) => setError(e.message));
-    if (page === "reports")
-      void api<ReportView>(`/reports/${reportPeriod}`)
+    if (page === "reports") {
+      const params = new URLSearchParams({ date: reportDate, shift: reportShift });
+      void api<ReportView>(`/reports/${reportPeriod}?${params.toString()}`)
         .then(setReport)
         .catch((e) => setError(e.message));
+    }
     if (page === "audit") {
       const query = auditAction
         ? `?action=${encodeURIComponent(auditAction)}`
@@ -478,7 +488,7 @@ export function App() {
         .then(setAuditRows)
         .catch((e) => setError(e.message));
     }
-  }, [page, token, api, reportPeriod, auditAction]);
+  }, [page, token, api, reportPeriod, reportDate, reportShift, auditAction]);
   useEffect(() => {
     if (user?.role !== "ADMIN" && page === "reports") setPage("stations");
   }, [page, user]);
@@ -1101,6 +1111,34 @@ export function App() {
                     </button>
                   ))}
                 </div>
+                <div className="report-filters">
+                  <label>
+                    Periodo de referencia
+                    <input
+                      type="date"
+                      value={reportDate}
+                      onChange={(event) => setReportDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Turno
+                    <select
+                      value={reportShift}
+                      onChange={(event) =>
+                        setReportShift(
+                          event.target.value as
+                            | "all"
+                            | "morning"
+                            | "afternoon",
+                        )
+                      }
+                    >
+                      <option value="all">Todos los turnos</option>
+                      <option value="morning">Mañana · 10:00–15:00</option>
+                      <option value="afternoon">Tarde · 15:00–22:00</option>
+                    </select>
+                  </label>
+                </div>
                 {report && (
                   <small>
                     {stamp(report.from)} — {stamp(report.to)}
@@ -1152,6 +1190,58 @@ export function App() {
                     </div>
                   </div>
                   <div className="report-grid">
+                    <div className="panel chart-panel">
+                      <h2>
+                        {reportPeriod === "daily"
+                          ? "Ingresos del día"
+                          : reportPeriod === "weekly"
+                            ? "Ingresos por día"
+                            : "Ingresos por semana"}
+                      </h2>
+                      <p>
+                        {reportPeriod === "daily"
+                          ? "Cobros registrados en la fecha seleccionada."
+                          : reportPeriod === "weekly"
+                            ? "Comparación de lunes a domingo."
+                            : "Comparación de las semanas del mes seleccionado."}
+                      </p>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          data={
+                            reportPeriod === "monthly"
+                              ? report.totalsByWeek.map((row) => ({
+                                  label: `Sem. ${new Date(`${row.weekStart}T12:00:00Z`).toLocaleDateString("es-PE", { day: "2-digit", month: "short", timeZone: "America/Lima" })}`,
+                                  amount: row.amountCents,
+                                }))
+                              : report.totalsByDay.map((row) => ({
+                                  label: new Date(`${row.day}T12:00:00Z`).toLocaleDateString("es-PE", { weekday: reportPeriod === "weekly" ? "short" : undefined, day: "2-digit", month: "short", timeZone: "America/Lima" }),
+                                  amount: row.amountCents,
+                                }))
+                          }
+                        >
+                          <CartesianGrid stroke="#2c3537" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fill: "#8a999a", fontSize: 10 }}
+                          />
+                          <YAxis
+                            tick={{ fill: "#8a999a", fontSize: 10 }}
+                            tickFormatter={(value) =>
+                              `S/${(value / 100).toFixed(0)}`
+                            }
+                          />
+                          <Tooltip
+                            formatter={(value) => currency(Number(value))}
+                          />
+                          <Bar
+                            dataKey="amount"
+                            name="Ingresos"
+                            fill="#91edbb"
+                            radius={[5, 5, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                     <div className="panel chart-panel">
                       <h2>Ingresos por categoría</h2>
                       <p>Tiempo, mandos y productos cobrados.</p>

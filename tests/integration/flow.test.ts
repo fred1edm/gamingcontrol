@@ -823,6 +823,27 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     assert.ok(
       result.topProducts.some((row) => row.name.startsWith("TEST-Gaseosa-")),
     );
+    const weekly = await read(
+      "/reports/weekly?date=2026-10-17&shift=morning",
+      token,
+    );
+    assert.equal(weekly.statusCode, 200);
+    assert.equal(weekly.json<{ shift: string }>().shift, "morning");
+    assert.ok(
+      Array.isArray(weekly.json<{ totalsByDay: unknown[] }>().totalsByDay),
+    );
+    const monthly = await read(
+      "/reports/monthly?date=2026-10-17&shift=afternoon",
+      token,
+    );
+    assert.equal(monthly.statusCode, 200);
+    assert.ok(
+      Array.isArray(monthly.json<{ totalsByWeek: unknown[] }>().totalsByWeek),
+    );
+    assert.equal(
+      (await read("/reports/daily?date=2026-02-30", token)).statusCode,
+      400,
+    );
     assert.equal((await read("/reports/unknown", token)).statusCode, 400);
   });
   await t.test(
