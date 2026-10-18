@@ -245,3 +245,7 @@ En el proyecto Supabase Gaming Control hay 3 usuarios, 17 estaciones, 18 tarifas
 
 Se añadió `POST /sessions/:id/move` para trasladar una sesión activa a una estación disponible del mismo tipo. La operación conserva el tiempo, la tarifa congelada, las bebidas/snacks y los mandos adicionales, incluso con pago anticipado; libera la estación anterior y marca la nueva como `IN_USE` dentro de una transacción serializable. Se audita como `SESSION_MOVED` y la UI ofrece el selector «Mover a otra estación» en el detalle de sesión. La prueba de integración valida también el rechazo de un destino de tipo diferente.
 
+## session_cancel_reason_update
+
+La cancelación ahora exige un motivo, lo guarda en `Session.cancelReason` y lo registra en auditoría. Historial diferencia «Cancelada · Sin cobro» de «Pendiente de pago» y muestra el motivo. La migración `202610170001_session_cancel_reason` añade el campo sin alterar sesiones existentes.
+

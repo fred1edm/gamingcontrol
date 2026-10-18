@@ -894,7 +894,17 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(openResumed.endsAt, null);
       assert.equal(
         (await write(`/sessions/${openStarted.id}/cancel`, {})).statusCode,
-        200,
+        400,
+      );
+      const cancelledOpen = (
+        await write(`/sessions/${openStarted.id}/cancel`, {
+          reason: "Cliente se retiró antes de terminar",
+        })
+      ).json<SessionView>();
+      assert.equal(cancelledOpen.status, "CANCELLED");
+      assert.equal(
+        cancelledOpen.cancelReason,
+        "Cliente se retiró antes de terminar",
       );
 
       const station = (
@@ -921,7 +931,11 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       ).json<SessionView>();
       assert.equal(resumed.status, "ACTIVE");
       assert.equal(
-        (await write(`/sessions/${started.id}/cancel`, {})).statusCode,
+        (
+          await write(`/sessions/${started.id}/cancel`, {
+            reason: "Se eligió la estación equivocada",
+          })
+        ).statusCode,
         200,
       );
 

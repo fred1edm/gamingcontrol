@@ -32,7 +32,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 button {
@@ -47,7 +48,8 @@ a:focus-visible {
   outline-offset: 4px;
 }
 input,
-select {
+select,
+textarea {
   width: 100%;
   background: #111819;
   border: 1px solid #394345;
@@ -58,7 +60,8 @@ select {
   outline: none;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--green);
   box-shadow: 0 0 0 2px #91edbb15;
 }
@@ -68,8 +71,17 @@ label {
   font-weight: 500;
 }
 label > input,
-label > select {
+label > select,
+label > textarea {
   margin-top: 8px;
+}
+.history-reason {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 h1,
 h2,

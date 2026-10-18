@@ -85,6 +85,7 @@ model Session {
   startedAt DateTime @default(now()) @db.Timestamptz(3)
   endsAt DateTime? @db.Timestamptz(3)
   finishedAt DateTime? @db.Timestamptz(3)
+  cancelReason String?
   status SessionStatus @default(ACTIVE)
   mode SessionMode
   baseMinutes Int?

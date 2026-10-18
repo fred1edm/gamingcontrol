@@ -27,6 +27,7 @@ import {
   sessionSaveInput,
   sessionResumeInput,
   sessionMoveInput,
+  sessionCancelInput,
   loyaltyStampInput,
   loyaltyRedeemInput,
   notificationSoundValues,
@@ -1666,10 +1667,8 @@ export async function buildApp(
     );
   });
   app.post("/sessions/:id/cancel", async (req) => {
-    const id = idOf(req);
-    z.object({})
-      .strict()
-      .parse(req.body ?? {});
+    const id = idOf(req),
+      input = sessionCancelInput.parse(req.body ?? {});
     return mutate(
       req,
       async (tx) => {
@@ -1680,7 +1679,11 @@ export async function buildApp(
           throw new ApiError(409, "Una sesión pagada debe conservarse");
         const updated = await tx.session.update({
           where: { id },
-          data: { status: "CANCELLED", finishedAt: new Date() },
+          data: {
+            status: "CANCELLED",
+            finishedAt: new Date(),
+            cancelReason: input.reason,
+          },
           include: details,
         });
         await tx.station.update({

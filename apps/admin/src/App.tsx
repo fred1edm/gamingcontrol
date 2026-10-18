@@ -240,6 +240,8 @@ export function App() {
   const [confirmFinish, setConfirmFinish] = useState(false),
     [createStation, setCreateStation] = useState(false);
   const [moveStationId, setMoveStationId] = useState("");
+  const [cancelSessionId, setCancelSessionId] = useState<string | null>(null),
+    [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{
     type: "station" | "product";
     id: string;
@@ -1045,9 +1047,20 @@ export function App() {
                           .join(", ") || "—"}
                       </td>
                       <td>
-                        {s.finishedAt
-                          ? "Pendiente de pago"
-                          : (labels[s.status] ?? s.status)}
+                        {s.status === "CANCELLED" ? (
+                          <>
+                            <strong>Cancelada · Sin cobro</strong>
+                            {s.cancelReason && (
+                              <small className="history-reason">
+                                Motivo: {s.cancelReason}
+                              </small>
+                            )}
+                          </>
+                        ) : s.finishedAt ? (
+                          "Pendiente de pago"
+                        ) : (
+                          (labels[s.status] ?? s.status)
+                        )}
                       </td>
                       <td>{currency(s.totalAmount)}</td>
                     </tr>
@@ -2466,19 +2479,8 @@ export function App() {
                           variant="ghost"
                           disabled={busy || !connected}
                           onClick={() => {
-                            if (
-                              !window.confirm(
-                                "¿Cancelar esta sesión? No se cobrará y quedará en el historial.",
-                              )
-                            )
-                              return;
-                            void run(async () => {
-                              await api(`/sessions/${session.id}/cancel`, {});
-                              setNotice(
-                                "Sesión cancelada y estación liberada.",
-                              );
-                              setSelected(null);
-                            });
+                            setCancelSessionId(session.id);
+                            setCancelReason("");
                           }}
                         >
                           Cancelar sesión
@@ -2730,13 +2732,8 @@ export function App() {
                         variant="ghost"
                         disabled={busy || !connected}
                         onClick={() => {
-                          if (!window.confirm("¿Cancelar esta sesión pausada?"))
-                            return;
-                          void run(async () => {
-                            await api(`/sessions/${session.id}/cancel`, {});
-                            setNotice("Sesión cancelada y estación liberada.");
-                            setSelected(null);
-                          });
+                          setCancelSessionId(session.id);
+                          setCancelReason("");
                         }}
                       >
                         Cancelar sesión
@@ -2841,6 +2838,78 @@ export function App() {
               </>
             )}
           </section>
+        </div>
+      )}
+      {cancelSessionId && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setCancelSessionId(null)}
+        >
+          <form
+            className="modal confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-session-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const reason = cancelReason.trim();
+              if (reason.length < 3) return;
+              void run(async () => {
+                await api(`/sessions/${cancelSessionId}/cancel`, { reason });
+                setNotice("Sesión cancelada sin cobro. El motivo quedó registrado.");
+                setCancelSessionId(null);
+                setCancelReason("");
+                setSelected(null);
+              });
+            }}
+          >
+            <div className="drawer-head">
+              <span className="eyebrow">CANCELAR SESIÓN</span>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Cerrar"
+                onClick={() => setCancelSessionId(null)}
+              >
+                <X />
+              </Button>
+            </div>
+            <h2 id="cancel-session-title">¿Por qué se cancela?</h2>
+            <p>
+              La sesión se cerrará sin cobro y quedará visible en Historial con
+              este motivo.
+            </p>
+            <label>
+              Motivo de cancelación
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                minLength={3}
+                maxLength={240}
+                rows={3}
+                placeholder="Ej.: se eligió la estación equivocada"
+                autoFocus
+                required
+              />
+            </label>
+            <div className="confirm-actions">
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={busy || !connected || cancelReason.trim().length < 3}
+              >
+                Confirmar cancelación
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCancelSessionId(null)}
+              >
+                Volver
+              </Button>
+            </div>
+          </form>
         </div>
       )}
       {createStation && (

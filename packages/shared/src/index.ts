@@ -106,6 +106,9 @@ export const sessionResumeInput = z.object({
 export const sessionMoveInput = z.object({
   stationId: z.string().uuid(),
 });
+export const sessionCancelInput = z.object({
+  reason: z.string().trim().min(3).max(240),
+});
 export const cashOpenInput = z.object({ openingAmount: money });
 export const cashCloseInput = z.object({ closingAmount: money });
 export const cashMovementInput = z.object({
@@ -184,6 +187,7 @@ export type SessionView = {
   startedAt: string;
   endsAt: string | null;
   finishedAt: string | null;
+  cancelReason?: string | null;
   baseMinutes: number | null;
   baseAmount: number;
   hourlyCents: number;
