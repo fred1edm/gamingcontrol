@@ -2753,7 +2753,7 @@ export function App() {
                               ))}
                             </select>
                             <small>
-                              Conserva el tiempo, bebidas/snacks y mandos adicionales.
+                              Conserva el tiempo, bebidas/snacks, mandos y pagos registrados.
                             </small>
                           </label>
                           <Button
