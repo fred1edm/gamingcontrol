@@ -1407,8 +1407,8 @@ export function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="report-grid">
-                    <div className="panel chart-panel">
+                  <div className="report-grid report-primary-grid">
+                    <div className="panel chart-panel report-trend-panel">
                       <h2>
                         {reportPeriod === "daily"
                           ? "Ingresos del día"
@@ -1460,54 +1460,42 @@ export function App() {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="panel chart-panel">
+                    <div className="panel category-panel">
                       <h2>Ingresos por categoría</h2>
                       <p>PlayStation, PC, mandos, snacks y bebidas cobrados.</p>
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart
-                          data={[
-                            { name: "PC", amount: report.categories.pcCents },
-                            {
-                              name: "PlayStation",
-                              amount: report.categories.playstationCents,
-                            },
-                            {
-                              name: "Mandos",
-                              amount: report.categories.extrasCents,
-                            },
-                            {
-                              name: "Snacks",
-                              amount: report.categories.snacksCents,
-                            },
-                            {
-                              name: "Bebidas",
-                              amount: report.categories.beveragesCents,
-                            },
-                          ]}
-                        >
-                          <CartesianGrid stroke="#2c3537" vertical={false} />
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                          />
-                          <YAxis
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                            tickFormatter={(value) =>
-                              `S/${(value / 100).toFixed(0)}`
-                            }
-                          />
-                          <Tooltip
-                            formatter={(value) => currency(Number(value))}
-                          />
-                          <Bar
-                            dataKey="amount"
-                            fill="#91edbb"
-                            radius={[5, 5, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <div className="category-list">
+                        {(() => {
+                          const categories = [
+                            { name: "PC", amount: report.categories.pcCents, icon: Monitor, tone: "blue" },
+                            { name: "PlayStation", amount: report.categories.playstationCents, icon: Gamepad2, tone: "green" },
+                            { name: "Mandos", amount: report.categories.extrasCents, icon: Package, tone: "amber" },
+                            { name: "Snacks", amount: report.categories.snacksCents, icon: Gift, tone: "pink" },
+                            { name: "Bebidas", amount: report.categories.beveragesCents, icon: WalletCards, tone: "cyan" },
+                          ];
+                          const categoryTotal = categories.reduce((sum, item) => sum + item.amount, 0);
+                          return categories.map((category) => {
+                            const share = categoryTotal ? Math.round((category.amount / categoryTotal) * 100) : 0;
+                            const CategoryIcon = category.icon;
+                            return (
+                              <div className="category-item" key={category.name}>
+                                <div className="category-item-top">
+                                  <span className={`category-icon ${category.tone}`}>
+                                    <CategoryIcon size={16} />
+                                  </span>
+                                  <span className="category-name">{category.name}</span>
+                                  <strong>{currency(category.amount)}</strong>
+                                </div>
+                                <div className="category-progress">
+                                  <span style={{ width: `${share}%` }} />
+                                </div>
+                                <small>{share}% del ingreso categorizado</small>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
                     </div>
-                    <div className="panel chart-panel">
+                    <div className="panel chart-panel report-demand-panel">
                       <h2>Demanda por hora</h2>
                       <p>Sesiones iniciadas según la hora local.</p>
                       <ResponsiveContainer width="100%" height={240}>

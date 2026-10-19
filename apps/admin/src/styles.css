@@ -975,6 +975,94 @@ tbody tr:hover {
 .report-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.report-primary-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.8fr);
+  grid-template-areas:
+    "trend category"
+    "demand category";
+  align-items: stretch;
+}
+.report-trend-panel {
+  grid-area: trend;
+}
+.category-panel {
+  grid-area: category;
+}
+.report-demand-panel {
+  grid-area: demand;
+}
+.category-panel > p {
+  max-width: 360px;
+}
+.category-list {
+  display: grid;
+  gap: 17px;
+  margin-top: 22px;
+}
+.category-item {
+  display: grid;
+  gap: 8px;
+}
+.category-item-top {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+}
+.category-item-top strong {
+  color: var(--text);
+  font-size: 15px;
+}
+.category-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+.category-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.category-icon.blue {
+  color: #8fc3fa;
+  background: rgba(143, 195, 250, 0.12);
+}
+.category-icon.green {
+  color: var(--green);
+  background: rgba(145, 237, 187, 0.12);
+}
+.category-icon.amber {
+  color: var(--amber);
+  background: rgba(240, 194, 104, 0.12);
+}
+.category-icon.pink {
+  color: #f09bc5;
+  background: rgba(240, 155, 197, 0.12);
+}
+.category-icon.cyan {
+  color: #72d8df;
+  background: rgba(114, 216, 223, 0.12);
+}
+.category-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #273335;
+}
+.category-progress span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #68e0aa, #8fc3fa);
+  transition: width 180ms ease;
+}
+.category-item small {
+  color: var(--muted);
+  font-size: 10px;
+}
 .report-lists {
   align-items: start;
 }
@@ -1893,6 +1981,13 @@ details pre {
   .report-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .report-primary-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "trend"
+      "category"
+      "demand";
+  }
   .login-story {
     padding: 45px;
   }
@@ -2004,6 +2099,12 @@ details pre {
   .report-grid,
   .report-stats {
     grid-template-columns: 1fr;
+  }
+  .report-primary-grid {
+    grid-template-areas: none;
+  }
+  .report-primary-grid > * {
+    grid-area: auto;
   }
   .report-toolbar {
     align-items: flex-start;
