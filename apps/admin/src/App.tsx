@@ -232,6 +232,7 @@ type ReportView = {
     playstationCents: number;
     extrasCents: number;
     snacksCents: number;
+    beveragesCents: number;
   };
   paymentsByMethod: { method: string; amountCents: number }[];
   sessions: { count: number; averageCents: number };
@@ -1461,7 +1462,7 @@ export function App() {
                     </div>
                     <div className="panel chart-panel">
                       <h2>Ingresos por categoría</h2>
-                      <p>Tiempo, mandos y productos cobrados.</p>
+                      <p>PlayStation, PC, mandos, snacks y bebidas cobrados.</p>
                       <ResponsiveContainer width="100%" height={240}>
                         <BarChart
                           data={[
@@ -1477,6 +1478,10 @@ export function App() {
                             {
                               name: "Snacks",
                               amount: report.categories.snacksCents,
+                            },
+                            {
+                              name: "Bebidas",
+                              amount: report.categories.beveragesCents,
                             },
                           ]}
                         >

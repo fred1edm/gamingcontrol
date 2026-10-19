@@ -746,10 +746,18 @@ export async function buildApp(
               station: { select: { name: true, type: true } },
               extensions: true,
               extras: true,
-              sales: { include: { items: true } },
+              sales: {
+                include: {
+                  items: { include: { product: { select: { category: true } } } },
+                },
+              },
             },
           },
-          sale: { include: { items: true } },
+          sale: {
+            include: {
+              items: { include: { product: { select: { category: true } } } },
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
       }),
@@ -775,7 +783,8 @@ export async function buildApp(
       pcCents = 0,
       playstationCents = 0,
       extrasCents = 0,
-      snacksCents = 0;
+      snacksCents = 0,
+      beveragesCents = 0;
     const byMethod = new Map<string, number>(),
       byStation = new Map<string, { name: string; amountCents: number }>(),
       byProduct = new Map<
@@ -819,6 +828,17 @@ export async function buildApp(
         byProduct.set(item.productName, current);
       }
     }
+    function addProductCategories(
+      items: {
+        subtotalCents: number;
+        product: { category: "BEVERAGE" | "SNACK" };
+      }[],
+    ) {
+      for (const item of items) {
+        if (item.product.category === "BEVERAGE") beveragesCents += item.subtotalCents;
+        else snacksCents += item.subtotalCents;
+      }
+    }
     for (const payment of payments) {
       totalCents += payment.amountCents;
       byMethod.set(
@@ -852,17 +872,15 @@ export async function buildApp(
           (sum, item) => sum + item.total,
           0,
         );
-        const saleCents = target.sales.reduce(
-          (sum, sale) => sum + sale.totalCents,
-          0,
-        );
         extrasCents += extraCents;
-        snacksCents += saleCents;
         if (target.station.type === "PC") pcCents += timeCents;
         else playstationCents += timeCents;
-        for (const sale of target.sales) addProducts(sale.items);
+        for (const sale of target.sales) {
+          addProductCategories(sale.items);
+          addProducts(sale.items);
+        }
       } else if (payment.sale) {
-        snacksCents += payment.sale.totalCents;
+        addProductCategories(payment.sale.items);
         addProducts(payment.sale.items);
       }
     }
@@ -895,7 +913,13 @@ export async function buildApp(
       from: from.toISOString(),
       to: to.toISOString(),
       totalCents,
-      categories: { pcCents, playstationCents, extrasCents, snacksCents },
+      categories: {
+        pcCents,
+        playstationCents,
+        extrasCents,
+        snacksCents,
+        beveragesCents,
+      },
       promotions: {
         freeHours: promotions.freeHours,
         snackKits: promotions.snackKits,

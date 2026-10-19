@@ -805,7 +805,13 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     const result = daily.json<{
       totalCents: number;
       sessions: { count: number };
-      categories: { snacksCents: number };
+      categories: {
+        pcCents: number;
+        playstationCents: number;
+        extrasCents: number;
+        snacksCents: number;
+        beveragesCents: number;
+      };
       promotions: {
         freeHours: number;
         snackKits: number;
@@ -817,6 +823,10 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     assert.ok(result.totalCents >= 2400);
     assert.ok(result.sessions.count >= 1);
     assert.ok(result.categories.snacksCents >= 600);
+    assert.equal(typeof result.categories.pcCents, "number");
+    assert.equal(typeof result.categories.playstationCents, "number");
+    assert.equal(typeof result.categories.extrasCents, "number");
+    assert.equal(typeof result.categories.beveragesCents, "number");
     assert.ok(result.promotions.freeHours >= 1);
     assert.ok(result.promotions.snackKits >= 1);
     assert.ok(result.promotions.totalValueCents > 0);
