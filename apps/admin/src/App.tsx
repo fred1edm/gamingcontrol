@@ -214,6 +214,7 @@ const labels: Record<string, string> = {
 };
 type Page =
   | "stations"
+  | "saved"
   | "history"
   | "inventory"
   | "cash"
@@ -921,6 +922,7 @@ export function App() {
           {(
             [
               ["stations", LayoutGrid, "Estaciones"],
+              ["saved", Clock3, "Horas guardadas"],
               ["history", History, "Historial"],
               ["inventory", Package, "Inventario"],
               ["cash", WalletCards, "Caja"],
@@ -980,6 +982,7 @@ export function App() {
               {
                 {
                   stations: "Estaciones",
+                  saved: "Horas guardadas",
                   inventory: "Inventario",
                   cash: "Caja",
                   loyalty: "Tarjetas",
@@ -1106,48 +1109,6 @@ export function App() {
                         <strong>{item.name}</strong>
                         <span>{duration(item.session!, now)}</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {savedSessions.length > 0 && (
-                <div className="saved-sessions-panel">
-                  <div>
-                    <span className="eyebrow">HORAS GUARDADAS</span>
-                    <p>Sesiones pausadas o pagadas listas para reanudar</p>
-                  </div>
-                  <div className="saved-sessions-list">
-                    {savedSessions.map((saved) => (
-                      <div className="saved-session" key={saved.id}>
-                        <div>
-                          <strong>
-                            {saved.savedName || "Cliente sin nombre"}
-                          </strong>
-                          <span>
-                            {saved.station.name} · {saved.station.type} ·{" "}
-                            {duration(saved, now)}
-                          </span>
-                          {saved.savedCode && (
-                            <small>
-                              Código de validación: {saved.savedCode}
-                            </small>
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          disabled={busy || !connected}
-                          onClick={() =>
-                            void run(async () => {
-                              await api(`/sessions/${saved.id}/resume`, {});
-                              setNotice(
-                                "Sesión reanudada en una estación disponible.",
-                              );
-                            })
-                          }
-                        >
-                          Reanudar
-                        </Button>
-                      </div>
                     ))}
                   </div>
                 </div>
@@ -1288,6 +1249,46 @@ export function App() {
                 real y respaldo cada 5 segundos · Zona America/Lima
               </p>
             </>
+          )}
+          {page === "saved" && (
+            <div className="saved-sessions-panel">
+              <div>
+                <span className="eyebrow">HORAS GUARDADAS</span>
+                <h1>Horas guardadas</h1>
+                <p>Sesiones listas para reanudar en una estación disponible.</p>
+              </div>
+              {savedSessions.length > 0 ? (
+                <div className="saved-sessions-list">
+                  {savedSessions.map((saved) => (
+                    <div className="saved-session" key={saved.id}>
+                      <div>
+                        <strong>{saved.savedName || "Cliente sin nombre"}</strong>
+                        <span>
+                          {saved.station.name} · {saved.station.type} · {duration(saved, now)}
+                        </span>
+                        {saved.savedCode && (
+                          <small>Código de validación: {saved.savedCode}</small>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        disabled={busy || !connected}
+                        onClick={() =>
+                          void run(async () => {
+                            await api(`/sessions/${saved.id}/resume`, {});
+                            setNotice("Sesión reanudada en una estación disponible.");
+                          })
+                        }
+                      >
+                        Reanudar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">No hay horas guardadas.</div>
+              )}
+            </div>
           )}
           {page === "history" && (
             <div className="table-wrap">
