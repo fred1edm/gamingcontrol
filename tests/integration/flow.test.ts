@@ -1103,6 +1103,10 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         method: "CASH",
       });
       assert.equal(payment.statusCode, 200);
+      assert.equal(
+        (await write(`/sessions/${paidStarted.id}/save`, {})).statusCode,
+        400,
+      );
       const saved = (
         await write(`/sessions/${paidStarted.id}/save`, {
           name: "TEST Cliente",

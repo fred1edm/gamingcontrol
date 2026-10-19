@@ -435,6 +435,8 @@ export function App() {
     [chosenExtra, setChosenExtra] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false),
     [createStation, setCreateStation] = useState(false);
+  const [saveSessionId, setSaveSessionId] = useState<string | null>(null);
+  const [saveClientName, setSaveClientName] = useState("");
   const [moveStationId, setMoveStationId] = useState("");
   const [cancelSessionId, setCancelSessionId] = useState<string | null>(null),
     [cancelReason, setCancelReason] = useState("");
@@ -3247,18 +3249,10 @@ export function App() {
                             <Button
                               variant="outline"
                               disabled={busy || !connected}
-                              onClick={() =>
-                                void run(async () => {
-                                  const saved = await api<SessionView>(
-                                    `/sessions/${session.id}/save`,
-                                    {},
-                                  );
-                                  setNotice(
-                                    `Hora guardada. Código de validación: ${saved.savedCode ?? "—"}`,
-                                  );
-                                  setSelected(null);
-                                })
-                              }
+                              onClick={() => {
+                                setSaveSessionId(session.id);
+                                setSaveClientName("");
+                              }}
                             >
                               Guardar hora restante
                             </Button>
@@ -3586,6 +3580,86 @@ export function App() {
                 onClick={() => setCancelSessionId(null)}
               >
                 Volver
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+      {saveSessionId && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => {
+            setSaveSessionId(null);
+            setSaveClientName("");
+          }}
+        >
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-session-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = saveClientName.trim();
+              if (!name) return;
+              void run(async () => {
+                const saved = await api<SessionView>(
+                  `/sessions/${saveSessionId}/save`,
+                  { name },
+                );
+                setNotice(
+                  `Hora de ${name} guardada. Código de validación: ${saved.savedCode ?? "—"}`,
+                );
+                setSaveSessionId(null);
+                setSaveClientName("");
+                setSelected(null);
+              });
+            }}
+          >
+            <div className="drawer-head">
+              <span className="eyebrow">GUARDAR HORA</span>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Cerrar"
+                onClick={() => {
+                  setSaveSessionId(null);
+                  setSaveClientName("");
+                }}
+              >
+                <X />
+              </Button>
+            </div>
+            <h2 id="save-session-title">¿A nombre de quién se guarda?</h2>
+            <p className="modal-help">
+              El nombre te ayudará a identificar y reanudar esta hora después.
+            </p>
+            <label>
+              Nombre del cliente
+              <input
+                value={saveClientName}
+                onChange={(e) => setSaveClientName(e.target.value)}
+                minLength={1}
+                maxLength={80}
+                placeholder="Nombre y apellido"
+                autoFocus
+                required
+              />
+            </label>
+            <div className="confirm-actions">
+              <Button type="submit" disabled={busy || !connected || !saveClientName.trim()}>
+                Guardar hora
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSaveSessionId(null);
+                  setSaveClientName("");
+                }}
+              >
+                Cancelar
               </Button>
             </div>
           </form>

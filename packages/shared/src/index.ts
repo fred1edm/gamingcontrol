@@ -110,7 +110,7 @@ export const splitPaymentInput = z.object({
     .max(4),
 });
 export const sessionSaveInput = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
+  name: z.string().trim().min(1, "Ingresa el nombre del cliente").max(80),
 });
 export const sessionResumeInput = z.object({
   stationId: z.string().uuid().optional(),
