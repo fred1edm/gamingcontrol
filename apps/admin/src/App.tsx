@@ -1449,6 +1449,7 @@ export function App() {
                             }
                           />
                           <Tooltip
+                            cursor={false}
                             formatter={(value) => currency(Number(value))}
                           />
                           <Bar
@@ -1514,7 +1515,7 @@ export function App() {
                             allowDecimals={false}
                             tick={{ fill: "#8a999a", fontSize: 10 }}
                           />
-                          <Tooltip />
+                          <Tooltip cursor={false} />
                           <Bar
                             dataKey="count"
                             name="Sesiones"

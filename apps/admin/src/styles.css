@@ -1072,6 +1072,26 @@ tbody tr:hover {
 .chart-panel .recharts-wrapper {
   margin-top: 12px;
 }
+.chart-panel .recharts-default-tooltip {
+  border: 1px solid #3a4a4d !important;
+  border-radius: 10px !important;
+  background: #172123 !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+.chart-panel .recharts-tooltip-label {
+  margin-bottom: 5px;
+  color: #b8c7c8 !important;
+  font-size: 11px;
+}
+.chart-panel .recharts-tooltip-item {
+  color: var(--green) !important;
+  font-size: 12px;
+  font-weight: 650;
+}
+.chart-panel .recharts-tooltip-item-name,
+.chart-panel .recharts-tooltip-item-separator {
+  color: #e5eeee !important;
+}
 .audit-page {
   display: grid;
   gap: 16px;
