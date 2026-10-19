@@ -3411,7 +3411,7 @@ export function App() {
                       </Button>
                     </>
                   ) : (
-                    <>
+                    <div className="pending-payment-panel">
                       <div className="info">
                         <ShieldCheck size={22} />
                         <p>
@@ -3432,7 +3432,7 @@ export function App() {
                         totalCents={sessionBalance}
                       />
                       <Button
-                        className="w-full mt-4"
+                        className="w-full"
                         disabled={busy || !connected || !cash.register}
                         onClick={() =>
                           void run(async () => {
@@ -3453,7 +3453,7 @@ export function App() {
                       >
                         Registrar pago · {currency(sessionBalance)}
                       </Button>
-                    </>
+                    </div>
                   )}
                   {!session.finishedAt &&
                     session.status !== "PAUSED" &&

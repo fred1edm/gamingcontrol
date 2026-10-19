@@ -1340,13 +1340,18 @@ details pre {
 }
 .drawer-session > .session-summary {
   grid-column: 1;
+  grid-row: 4;
   min-width: 0;
 }
 .drawer-session > .session-actions {
   grid-column: 2;
-  grid-row: 3 / -1;
+  grid-row: 4 / -1;
   align-self: start;
   margin-top: 0;
+}
+.drawer-session > .error {
+  grid-row: 3;
+  margin: 0;
 }
 .drawer-session > .drawer-head {
   margin-bottom: 12px;
@@ -1545,6 +1550,20 @@ details pre {
 }
 .prepay-box button {
   white-space: nowrap;
+}
+.pending-payment-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #91edbb30;
+  border-radius: 12px;
+  background: #91edbb08;
+}
+.pending-payment-panel .info {
+  margin: 0;
+}
+.pending-payment-panel .payment-fields {
+  gap: 10px;
 }
 .desktop-notification-setting {
   display: flex;
