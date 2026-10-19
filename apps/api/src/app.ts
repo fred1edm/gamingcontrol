@@ -1323,7 +1323,7 @@ export async function buildApp(
       const card = await tx.loyaltyCard.findUnique({ where: { id } });
       if (!card?.active) throw new ApiError(404, "Tarjeta de fidelización no encontrada");
       if (card.freeHourAvailable)
-        throw new ApiError(409, "Canjea la hora gratis antes de seguir acumulando sellos");
+        throw new ApiError(409, "Elige o canjea el premio disponible antes de seguir acumulando sellos");
       if (card.snackKitAvailable)
         throw new ApiError(409, "Canjea el kit de snacks antes de reiniciar la tarjeta");
       if (card.stampCount + input.quantity > 12)
@@ -1335,7 +1335,7 @@ export async function buildApp(
         where: { id },
         data: {
           stampCount,
-          freeHourAvailable: stampCount === 6,
+          freeHourAvailable: stampCount === 6 || stampCount === 12,
           snackKitAvailable: stampCount === 12,
         },
         include: loyaltyCardInclude,
@@ -1351,8 +1351,8 @@ export async function buildApp(
       const card = await tx.loyaltyCard.findUnique({ where: { id } });
       if (!card?.active) throw new ApiError(404, "Tarjeta de fidelización no encontrada");
       if (input.rewardType === "FREE_HOUR") {
-        if (card.stampCount !== 6 || !card.freeHourAvailable)
-          throw new ApiError(409, "La hora gratis se habilita al completar 6 sellos");
+        if (![6, 12].includes(card.stampCount) || !card.freeHourAvailable)
+          throw new ApiError(409, "La hora gratis se habilita al completar 6 o 12 sellos");
         if (!input.stationId)
           throw new ApiError(400, "Selecciona una estación libre para la hora gratis");
         const station = await tx.station.findUnique({
@@ -1394,14 +1394,17 @@ export async function buildApp(
           data: {
             cardId: id,
             rewardType: "FREE_HOUR",
-            stampsUsed: 6,
+            stampsUsed: card.stampCount,
             promotionValueCents: hourlyCents,
             createdBy: actor(req).id,
           },
         });
+        const completedFullCard = card.stampCount === 12;
         const updated = await tx.loyaltyCard.update({
           where: { id },
-          data: { freeHourAvailable: false },
+          data: completedFullCard
+            ? { stampCount: 0, freeHourAvailable: false, snackKitAvailable: false }
+            : { freeHourAvailable: false },
           include: loyaltyCardInclude,
         });
         await audit(tx, req, "SESSION_STARTED", "Session", freeSession.id, null, { ...freeSession, loyaltyCardId: id });

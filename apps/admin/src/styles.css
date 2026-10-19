@@ -889,6 +889,11 @@ tbody tr:hover {
   align-items: center;
   gap: 10px;
 }
+.loyalty-reward-choice {
+  flex-basis: 100%;
+  color: var(--green);
+  font-size: 11px;
+}
 .station-loyalty-redeem {
   border: 1px solid #62e6b54d;
   border-radius: 14px;

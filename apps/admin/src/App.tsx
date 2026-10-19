@@ -2081,6 +2081,11 @@ export function App() {
                           </Button>
                           {card.freeHourAvailable && (
                             <>
+                              {card.stampCount === 12 && (
+                                <small className="loyalty-reward-choice">
+                                  Completaste 12 sellos. Puedes elegir hora gratis o kit.
+                                </small>
+                              )}
                               <select
                                 value={chosenLoyaltyStation}
                                 onChange={(e) => setChosenLoyaltyStation(e.target.value)}
@@ -2108,12 +2113,17 @@ export function App() {
                                   })
                                 }
                               >
-                                Canjear hora gratis
+                                {card.stampCount === 12 ? "Elegir hora gratis" : "Canjear hora gratis"}
                               </Button>
                             </>
                           )}
                           {card.snackKitAvailable && (
                             <>
+                              {card.stampCount === 12 && (
+                                <small className="loyalty-reward-choice">
+                                  También puedes elegir el kit configurado.
+                                </small>
+                              )}
                               <div className="info loyalty-kit-configured">
                                 <Gift size={18} />
                                 <p>
