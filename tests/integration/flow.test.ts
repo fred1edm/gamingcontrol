@@ -823,6 +823,14 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     assert.ok(result.totalCents >= 2400);
     assert.ok(result.sessions.count >= 1);
     assert.ok(result.categories.snacksCents >= 600);
+    assert.equal(
+      result.categories.pcCents +
+        result.categories.playstationCents +
+        result.categories.extrasCents +
+        result.categories.snacksCents +
+        result.categories.beveragesCents,
+      result.totalCents,
+    );
     assert.equal(typeof result.categories.pcCents, "number");
     assert.equal(typeof result.categories.playstationCents, "number");
     assert.equal(typeof result.categories.extrasCents, "number");

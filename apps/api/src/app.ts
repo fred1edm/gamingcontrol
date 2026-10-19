@@ -828,16 +828,32 @@ export async function buildApp(
         byProduct.set(item.productName, current);
       }
     }
-    function addProductCategories(
-      items: {
-        subtotalCents: number;
-        product: { category: "BEVERAGE" | "SNACK" };
+    function addCategorizedPayment(
+      amountCents: number,
+      components: {
+        category: "pc" | "playstation" | "extras" | "snacks" | "beverages";
+        amountCents: number;
       }[],
     ) {
-      for (const item of items) {
-        if (item.product.category === "BEVERAGE") beveragesCents += item.subtotalCents;
-        else snacksCents += item.subtotalCents;
-      }
+      const positive = components.filter((component) => component.amountCents > 0);
+      const componentTotal = positive.reduce(
+        (sum, component) => sum + component.amountCents,
+        0,
+      );
+      if (!componentTotal || amountCents <= 0) return;
+      let allocated = 0;
+      positive.forEach((component, index) => {
+        const share =
+          index === positive.length - 1
+            ? amountCents - allocated
+            : Math.floor((component.amountCents * amountCents) / componentTotal);
+        allocated += share;
+        if (component.category === "pc") pcCents += share;
+        if (component.category === "playstation") playstationCents += share;
+        if (component.category === "extras") extrasCents += share;
+        if (component.category === "snacks") snacksCents += share;
+        if (component.category === "beverages") beveragesCents += share;
+      });
     }
     for (const payment of payments) {
       totalCents += payment.amountCents;
@@ -872,15 +888,35 @@ export async function buildApp(
           (sum, item) => sum + item.total,
           0,
         );
-        extrasCents += extraCents;
-        if (target.station.type === "PC") pcCents += timeCents;
-        else playstationCents += timeCents;
+        let sessionSnacksCents = 0;
+        let sessionBeveragesCents = 0;
         for (const sale of target.sales) {
-          addProductCategories(sale.items);
+          for (const item of sale.items) {
+            if (item.product.category === "BEVERAGE") sessionBeveragesCents += item.subtotalCents;
+            else sessionSnacksCents += item.subtotalCents;
+          }
           addProducts(sale.items);
         }
+        addCategorizedPayment(payment.amountCents, [
+          {
+            category: target.station.type === "PC" ? "pc" : "playstation",
+            amountCents: timeCents,
+          },
+          { category: "extras", amountCents: extraCents },
+          { category: "snacks", amountCents: sessionSnacksCents },
+          { category: "beverages", amountCents: sessionBeveragesCents },
+        ]);
       } else if (payment.sale) {
-        addProductCategories(payment.sale.items);
+        const saleSnacksCents = payment.sale.items
+          .filter((item) => item.product.category === "SNACK")
+          .reduce((sum, item) => sum + item.subtotalCents, 0);
+        const saleBeveragesCents = payment.sale.items
+          .filter((item) => item.product.category === "BEVERAGE")
+          .reduce((sum, item) => sum + item.subtotalCents, 0);
+        addCategorizedPayment(payment.amountCents, [
+          { category: "snacks", amountCents: saleSnacksCents },
+          { category: "beverages", amountCents: saleBeveragesCents },
+        ]);
         addProducts(payment.sale.items);
       }
     }
