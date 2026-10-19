@@ -1459,10 +1459,6 @@ export function App() {
                     <div className="panel-heading">
                       <div>
                         <h2>Control de caja por turno</h2>
-                        <p>
-                          El sencillo y las entregas no se mezclan con los
-                          ingresos del negocio.
-                        </p>
                       </div>
                       <WalletCards size={21} />
                     </div>
