@@ -241,6 +241,27 @@ type ReportView = {
   demandByHour: { hour: number; count: number }[];
   totalsByDay: { day: string; amountCents: number }[];
   totalsByWeek: { weekStart: string; amountCents: number }[];
+  cashControl: {
+    cashSalesCents: number;
+    digitalSalesCents: number;
+    registers: {
+      id: string;
+      status: string;
+      openedAt: string;
+      closedAt: string | null;
+      openingAmountCents: number;
+      cashSalesCents: number;
+      digitalSalesCents: number;
+      movementCents: number;
+      expectedAmountCents: number;
+      closingAmountCents: number | null;
+      differenceCents: number | null;
+      openedBy: string;
+      closedBy: string | null;
+      openedByName: string;
+      closedByName: string | null;
+    }[];
+  };
   shift: "all" | "morning" | "afternoon";
   promotions: {
     freeHours: number;
@@ -378,8 +399,16 @@ export function App() {
       openingAmount: number;
       expectedAmount: number;
       status: string;
+      cashPaymentsCents: number;
+      digitalPaymentsCents: number;
     } | null;
-  }>({ register: null });
+    lastClosed: {
+      id: string;
+      closingAmount: number | null;
+      closedAt: string | null;
+      difference: number | null;
+    } | null;
+  }>({ register: null, lastClosed: null });
   const [selected, setSelected] = useState<string | null>(null),
     [continuePaidSessionId, setContinuePaidSessionId] = useState<string | null>(null),
     [filter, setFilter] = useState("ALL"),
@@ -1412,6 +1441,61 @@ export function App() {
                       </div>
                     </div>
                   </div>
+                  <div className="panel cash-report-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Control de caja por turno</h2>
+                        <p>
+                          El sencillo y las entregas no se mezclan con los
+                          ingresos del negocio.
+                        </p>
+                      </div>
+                      <WalletCards size={21} />
+                    </div>
+                    <div className="cash-report-summary">
+                      <div>
+                        <span>Efectivo cobrado</span>
+                        <strong>{currency(report.cashControl.cashSalesCents)}</strong>
+                      </div>
+                      <div>
+                        <span>Pagos digitales</span>
+                        <strong>{currency(report.cashControl.digitalSalesCents)}</strong>
+                      </div>
+                      <div>
+                        <span>Total cobrado</span>
+                        <strong>{currency(report.totalCents)}</strong>
+                      </div>
+                    </div>
+                    {report.cashControl.registers.length ? (
+                      <div className="cash-register-history">
+                        {report.cashControl.registers.map((register) => (
+                          <div className="cash-register-row" key={register.id}>
+                            <div>
+                              <strong>
+                                {register.status === "OPEN" ? "Turno abierto" : "Turno cerrado"}
+                              </strong>
+                              <small>
+                                {stamp(register.openedAt)} · Abrió: {register.openedByName}
+                                {register.closedByName ? ` · Cerró: ${register.closedByName}` : ""}
+                              </small>
+                            </div>
+                            <div className="cash-register-values">
+                              <span>Inicio {currency(register.openingAmountCents)}</span>
+                              <span>Esperado {currency(register.expectedAmountCents)}</span>
+                              <span>
+                                Contado {register.closingAmountCents == null ? "Pendiente" : currency(register.closingAmountCents)}
+                              </span>
+                              <strong className={register.differenceCents == null ? "" : register.differenceCents === 0 ? "cash-ok" : "cash-difference"}>
+                                {register.differenceCents == null ? "Sin cierre" : `Diferencia ${currency(register.differenceCents)}`}
+                              </strong>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="empty">No hay cierres de caja en este periodo.</div>
+                    )}
+                  </div>
                   <div className="report-grid report-primary-grid">
                     <div className="panel chart-panel report-trend-panel">
                       <h2>
@@ -2090,7 +2174,20 @@ export function App() {
                       });
                     }}
                   >
-                    <p>Indica el efectivo disponible al comenzar.</p>
+                    {cash.lastClosed?.closingAmount != null && (
+                      <div className="cash-handoff-note">
+                        <strong>
+                          Caja recibida del turno anterior: {currency(cash.lastClosed.closingAmount)}
+                        </strong>
+                        <small>
+                          Cuenta el efectivo y confirma el monto encontrado para abrir tu turno.
+                        </small>
+                      </div>
+                    )}
+                    <p>
+                      Registra el efectivo físico que encuentras al comenzar.
+                      Los pagos digitales no forman parte de este monto.
+                    </p>
                     <label>
                       Monto de apertura (S/)
                       <input
@@ -2098,9 +2195,18 @@ export function App() {
                         required
                         pattern="\d+(\.\d{1,2})?"
                         placeholder="0.00"
+                        defaultValue={
+                          cash.lastClosed?.closingAmount != null
+                            ? (cash.lastClosed.closingAmount / 100).toFixed(2)
+                            : undefined
+                        }
                       />
                     </label>
-                    <Button disabled={busy}>Abrir caja</Button>
+                    <Button disabled={busy}>
+                      {cash.lastClosed?.closingAmount != null
+                        ? "Recibir caja y abrir turno"
+                        : "Abrir caja"}
+                    </Button>
                   </form>
                 ) : (
                   <div>
@@ -2115,7 +2221,23 @@ export function App() {
                           {currency(cash.register.expectedAmount)}
                         </strong>
                       </div>
+                      <div>
+                        <span>Cobros en efectivo</span>
+                        <strong>
+                          {currency(cash.register.cashPaymentsCents)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Cobros digitales</span>
+                        <strong>
+                          {currency(cash.register.digitalPaymentsCents)}
+                        </strong>
+                      </div>
                     </div>
+                    <p className="cash-handoff-help">
+                      Al cerrar, el efectivo contado quedará como referencia
+                      para que el siguiente turno reciba la caja.
+                    </p>
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -2124,7 +2246,7 @@ export function App() {
                           await api("/cash/close", {
                             closingAmount: parseCents(String(f.get("closing"))),
                           });
-                          setNotice("Caja cerrada y diferencia registrada.");
+                          setNotice("Turno cerrado y caja entregada.");
                         });
                       }}
                     >
@@ -2138,7 +2260,7 @@ export function App() {
                         />
                       </label>
                       <Button variant="outline" disabled={busy}>
-                        Cerrar caja
+                        Cerrar turno y entregar caja
                       </Button>
                     </form>
                   </div>

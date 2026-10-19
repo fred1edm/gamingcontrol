@@ -944,6 +944,86 @@ export async function buildApp(
         (totalsByWeekMap.get(weekStart) ?? 0) + amountCents,
       );
     }
+    const cashRegisters = await db.cashRegister.findMany({
+      where: {
+        openedAt: { lt: to },
+        OR: [{ closedAt: null }, { closedAt: { gte: from } }],
+      },
+      include: { movements: true, payments: true },
+      orderBy: { openedAt: "asc" },
+    });
+    const registerRows = cashRegisters
+      .filter((register) => reportShiftMatches(register.openedAt, shift))
+      .map((register) => {
+        const paymentsInRange = register.payments.filter(
+          (payment) =>
+            payment.createdAt >= from &&
+            payment.createdAt < to &&
+            reportShiftMatches(payment.createdAt, shift),
+        );
+        const movementsInRange = register.movements.filter(
+          (movement) =>
+            movement.type !== "OPENING" &&
+            movement.createdAt >= from &&
+            movement.createdAt < to &&
+            reportShiftMatches(movement.createdAt, shift),
+        );
+        const expectedCents =
+          register.expectedAmount ??
+          register.openingAmount +
+            register.movements
+              .filter((movement) => movement.method === "CASH")
+              .reduce(
+                (sum, movement) =>
+                  sum +
+                  (movement.type === "WITHDRAWAL"
+                    ? -movement.amount
+                    : movement.amount),
+                0,
+              );
+        return {
+          id: register.id,
+          status: register.status,
+          openedAt: register.openedAt,
+          closedAt: register.closedAt,
+          openingAmountCents: register.openingAmount,
+          cashSalesCents: paymentsInRange
+            .filter((payment) => payment.method === "CASH")
+            .reduce((sum, payment) => sum + payment.amountCents, 0),
+          digitalSalesCents: paymentsInRange
+            .filter((payment) => payment.method !== "CASH")
+            .reduce((sum, payment) => sum + payment.amountCents, 0),
+          movementCents: movementsInRange.reduce(
+            (sum, movement) =>
+              sum +
+              (movement.type === "WITHDRAWAL"
+                ? -movement.amount
+                : movement.amount),
+            0,
+          ),
+          expectedAmountCents: expectedCents,
+          closingAmountCents: register.closingAmount,
+          differenceCents: register.difference,
+          openedBy: register.openedBy,
+          closedBy: register.closedBy,
+        };
+      });
+    const reportUserIds = [
+      ...new Set(
+        registerRows.flatMap((row) =>
+          [row.openedBy, row.closedBy].filter(
+            (id): id is string => Boolean(id),
+          ),
+        ),
+      ),
+    ];
+    const reportUsers = await db.user.findMany({
+      where: { id: { in: reportUserIds } },
+      select: { id: true, name: true },
+    });
+    const reportUserNames = new Map(
+      reportUsers.map((reportUser) => [reportUser.id, reportUser.name]),
+    );
     return {
       period,
       from: from.toISOString(),
@@ -988,6 +1068,17 @@ export async function buildApp(
       totalsByWeek: [...totalsByWeekMap.entries()]
         .map(([weekStart, amountCents]) => ({ weekStart, amountCents }))
         .sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+      cashControl: {
+        cashSalesCents: byMethod.get("CASH") ?? 0,
+        digitalSalesCents: totalCents - (byMethod.get("CASH") ?? 0),
+        registers: registerRows.map((row) => ({
+          ...row,
+          openedByName: reportUserNames.get(row.openedBy) ?? "Usuario eliminado",
+          closedByName: row.closedBy
+            ? reportUserNames.get(row.closedBy) ?? "Usuario eliminado"
+            : null,
+        })),
+      },
       shift,
     };
   }
@@ -2343,7 +2434,22 @@ export async function buildApp(
         payments: true,
       },
     });
-    if (!register) return { register: null };
+    const lastClosed = await db.cashRegister.findFirst({
+      where: { status: "CLOSED", closingAmount: { not: null } },
+      orderBy: { closedAt: "desc" },
+      select: {
+        id: true,
+        openingAmount: true,
+        closingAmount: true,
+        expectedAmount: true,
+        difference: true,
+        openedAt: true,
+        closedAt: true,
+        openedBy: true,
+        closedBy: true,
+      },
+    });
+    if (!register) return { register: null, lastClosed };
     const expectedAmount =
       register.openingAmount +
       register.movements
@@ -2352,7 +2458,21 @@ export async function buildApp(
           (sum, m) => sum + (m.type === "WITHDRAWAL" ? -m.amount : m.amount),
           0,
         );
-    return { register: { ...register, expectedAmount } };
+    const cashPaymentsCents = register.payments
+      .filter((payment) => payment.method === "CASH")
+      .reduce((sum, payment) => sum + payment.amountCents, 0);
+    const digitalPaymentsCents = register.payments
+      .filter((payment) => payment.method !== "CASH")
+      .reduce((sum, payment) => sum + payment.amountCents, 0);
+    return {
+      register: {
+        ...register,
+        expectedAmount,
+        cashPaymentsCents,
+        digitalPaymentsCents,
+      },
+      lastClosed,
+    };
   });
   app.post("/cash/open", async (req) => {
     const data = cashOpenInput.parse(req.body);

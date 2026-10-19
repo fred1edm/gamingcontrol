@@ -711,19 +711,26 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         register: { expectedAmount: number };
       }>();
       assert.equal(current.register.expectedAmount, 3200);
-      assert.equal(
-        (
-          await write(
-            "/cash/close",
-            { closingAmount: 3200 },
-            randomUUID(),
-            token,
-          )
-        ).statusCode,
-        200,
+      const closedMorning = await write(
+        "/cash/close",
+        { closingAmount: 3200 },
+        randomUUID(),
+        token,
       );
+      assert.equal(closedMorning.statusCode, 200);
       assert.equal(
-        (await write("/cash/open", { openingAmount: 0 }, randomUUID(), token))
+        closedMorning.json<{ expectedAmount: number; difference: number }>()
+          .expectedAmount,
+        3200,
+      );
+      const handoff = (await read("/cash/current", token)).json<{
+        register: unknown;
+        lastClosed: { closingAmount: number };
+      }>();
+      assert.equal(handoff.register, null);
+      assert.equal(handoff.lastClosed.closingAmount, 3200);
+      assert.equal(
+        (await write("/cash/open", { openingAmount: 3200 }, randomUUID(), token))
           .statusCode,
         200,
       );
@@ -751,7 +758,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         "PAID",
       );
       assert.equal(
-        (await write("/cash/close", { closingAmount: 0 }, randomUUID(), token))
+        (await write("/cash/close", { closingAmount: 3200 }, randomUUID(), token))
           .statusCode,
         200,
       );
@@ -817,6 +824,11 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         snackKits: number;
         totalValueCents: number;
       };
+      cashControl: {
+        cashSalesCents: number;
+        digitalSalesCents: number;
+        registers: { openingAmountCents: number }[];
+      };
       paymentsByMethod: { method: string; amountCents: number }[];
       topProducts: { name: string; quantity: number }[];
     }>();
@@ -840,6 +852,9 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     assert.ok(result.promotions.totalValueCents > 0);
     assert.ok(result.paymentsByMethod.some((row) => row.method === "CASH"));
     assert.ok(result.paymentsByMethod.some((row) => row.method === "YAPE"));
+    assert.ok(result.cashControl.cashSalesCents > 0);
+    assert.ok(result.cashControl.digitalSalesCents > 0);
+    assert.ok(result.cashControl.registers.every((row) => row.openingAmountCents >= 0));
     assert.ok(
       result.topProducts.some((row) => row.name.startsWith("TEST-Gaseosa-")),
     );

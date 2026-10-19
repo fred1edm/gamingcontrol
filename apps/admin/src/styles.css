@@ -991,6 +991,97 @@ tbody tr:hover {
 .report-demand-panel {
   grid-area: demand;
 }
+.cash-report-panel {
+  margin-top: 16px;
+}
+.cash-report-panel .panel-heading > svg {
+  color: var(--green);
+}
+.cash-report-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.cash-report-summary > div {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #ffffff03;
+}
+.cash-report-summary span,
+.cash-register-values span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.cash-report-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 18px;
+}
+.cash-register-history {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.cash-register-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.cash-register-row strong {
+  font-size: 12px;
+}
+.cash-register-row small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.cash-register-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px 16px;
+  text-align: right;
+}
+.cash-register-values strong {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cash-register-values .cash-ok {
+  color: var(--green);
+}
+.cash-register-values .cash-difference {
+  color: var(--red);
+}
+.cash-handoff-note {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border: 1px solid #91edbb35;
+  border-radius: 11px;
+  background: #91edbb08;
+}
+.cash-handoff-note strong {
+  color: var(--green);
+  font-size: 12px;
+}
+.cash-handoff-note small,
+.cash-handoff-help {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.cash-handoff-help {
+  margin: 14px 0 0;
+}
 .category-panel > p {
   max-width: 360px;
 }
@@ -2212,6 +2303,16 @@ details pre {
   }
   .user-row > .type {
     display: none;
+  }
+  .cash-report-summary {
+    grid-template-columns: 1fr;
+  }
+  .cash-register-row {
+    display: grid;
+  }
+  .cash-register-values {
+    justify-content: flex-start;
+    text-align: left;
   }
 }
 @media (prefers-reduced-motion: reduce) {
