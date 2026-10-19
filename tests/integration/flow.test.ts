@@ -551,8 +551,8 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       const target = (
         await write("/stations", {
           name: `TEST-MOVE-TARGET-${tag}`,
-          type: "PS5",
-          hourlyCents: 800,
+          type: "PS4",
+          hourlyCents: 400,
         })
       ).json<{ id: string }>();
       const moved = await write(
@@ -564,6 +564,8 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(moved.statusCode, 200);
       const view = moved.json<SessionView>();
       assert.equal(view.stationId, target.id);
+      assert.equal(view.baseAmount, 500);
+      assert.equal(view.totalAmount, 2200);
       assert.equal(view.extras[0]?.quantity, 3);
       assert.equal(view.sales[0]?.items[0]?.productName, `TEST-Gaseosa-${tag}`);
       const list = (await read("/stations")).json<{
@@ -577,9 +579,9 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         list.stations.find((s) => s.id === target.id)?.status,
         "IN_USE",
       );
-      const pc = (
+      const otherPc = (
         await write("/stations", {
-          name: `TEST-MOVE-PC-${tag}`,
+          name: `TEST-MOVE-PC-OTHER-${tag}`,
           type: "PC",
           hourlyCents: 400,
         })
@@ -588,7 +590,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         (
           await write(
             `/sessions/${sessionId}/move`,
-            { stationId: pc.id },
+            { stationId: otherPc.id },
             randomUUID(),
             employeeToken,
           )
@@ -610,7 +612,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(finished.statusCode, 200);
       const s = finished.json<SessionView>();
       assert.equal(s.status, "TIME_FINISHED");
-      assert.equal(s.totalAmount, 2500);
+      assert.equal(s.totalAmount, 2200);
       assert.ok(s.finishedAt);
       assert.equal(s.extensions.length, 1);
       assert.deepEqual(
@@ -708,12 +710,12 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       const current = (await read("/cash/current", token)).json<{
         register: { expectedAmount: number };
       }>();
-      assert.equal(current.register.expectedAmount, 3500);
+      assert.equal(current.register.expectedAmount, 3200);
       assert.equal(
         (
           await write(
             "/cash/close",
-            { closingAmount: 3500 },
+            { closingAmount: 3200 },
             randomUUID(),
             token,
           )

@@ -94,6 +94,7 @@ model Session {
   totalAmount Int
   closedAt DateTime? @db.Timestamptz(3)
   closedBy String? @db.Uuid
+  rateSegments SessionRateSegment[]
   extensions SessionExtension[]
   extras SessionExtra[]
   sales Sale[]
@@ -105,6 +106,16 @@ model Session {
   pausedAt DateTime? @db.Timestamptz(3)
   pausedRemainingSeconds Int?
   @@index([stationId,startedAt])
+}
+model SessionRateSegment {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @db.Uuid
+  session Session @relation(fields:[sessionId], references:[id])
+  stationType StationType
+  hourlyCents Int
+  startedAt DateTime @db.Timestamptz(3)
+  endedAt DateTime? @db.Timestamptz(3)
+  @@index([sessionId,startedAt])
 }
 model LoyaltyCard {
   id String @id @default(uuid()) @db.Uuid

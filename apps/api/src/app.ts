@@ -63,19 +63,89 @@ const details = {
   payments: {
     select: { id: true, method: true, amountCents: true, createdAt: true },
   },
+  rateSegments: { orderBy: { startedAt: "asc" as const } },
   station: { select: { name: true, type: true } },
 };
 type SessionDetail = Prisma.SessionGetPayload<{ include: typeof details }>;
 function paidAmount(s: { payments: { amountCents: number }[] }) {
   return s.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
 }
+function segmentMinutes(startedAt: Date, endedAt: Date) {
+  return Math.max(1, Math.ceil((endedAt.getTime() - startedAt.getTime()) / 60000));
+}
+function fixedSegmentsAmount(
+  session: SessionDetail,
+  segments: {
+    stationType: SessionDetail["rateSegments"][number]["stationType"];
+    hourlyCents: number;
+    startedAt: Date;
+    endedAt: Date | null;
+  }[],
+  plannedEnd: Date,
+) {
+  const totalBlocks = Math.max(1, Math.ceil((session.baseMinutes ?? 0) / 15));
+  let remainingBlocks = totalBlocks;
+  return segments.reduce((sum, segment, index) => {
+    const segmentEnd = segment.endedAt ?? plannedEnd;
+    const segmentStart = index === 0 ? session.startedAt : segment.startedAt;
+    if (segmentEnd <= segmentStart || remainingBlocks <= 0) return sum;
+    const blocks =
+      index === segments.length - 1
+        ? remainingBlocks
+        : Math.min(
+            remainingBlocks,
+            Math.max(1, Math.ceil(segmentMinutes(segmentStart, segmentEnd) / 15)),
+          );
+    remainingBlocks -= blocks;
+    return sum + priceForBlocks(segment.hourlyCents, segment.stationType, blocks * 15);
+  }, 0);
+}
 function view(s: SessionDetail, now: Date) {
   const openMeasuredAt =
     s.mode === "OPEN" && s.status === "PAUSED" && s.pausedAt
       ? s.pausedAt
       : s.finishedAt ?? now;
-  const base =
-    s.mode === "OPEN"
+  const segments = s.rateSegments.length
+    ? s.rateSegments
+    : [{
+        stationType: s.station.type,
+        hourlyCents: s.hourlyCents,
+        startedAt: s.startedAt,
+        endedAt: null,
+      }];
+  const freeHour =
+    s.mode === "FIXED" && s.baseMinutes === 60 && s.baseAmount === 0;
+  const extensionMinutes = s.extensions.reduce(
+    (sum, extension) => sum + extension.minutesAdded,
+    0,
+  );
+  const fixedPlannedEnd = s.endsAt
+    ? new Date(s.endsAt.getTime() - extensionMinutes * 60000)
+    : openMeasuredAt;
+  const base = s.rateSegments.length
+    ? freeHour
+      ? 0
+      : s.mode === "FIXED"
+        ? fixedSegmentsAmount(s, segments, fixedPlannedEnd)
+        : segments.reduce((sum, segment, index) => {
+        const segmentEnd =
+          segment.endedAt ??
+          (s.mode === "FIXED" ? fixedPlannedEnd : openMeasuredAt);
+        const segmentStart = index === 0 ? s.startedAt : segment.startedAt;
+        if (segmentEnd <= segmentStart) return sum;
+        const minutes = segmentMinutes(segmentStart, segmentEnd);
+        return (
+          sum +
+          (s.mode === "OPEN"
+            ? priceForOpenMinutes(
+                segment.hourlyCents,
+                segment.stationType,
+                minutes,
+              )
+            : priceForBlocks(segment.hourlyCents, segment.stationType, minutes))
+        );
+        }, 0)
+    : s.mode === "OPEN"
       ? priceForOpenMinutes(
           s.hourlyCents,
           s.station.type,
@@ -515,6 +585,27 @@ export async function buildApp(
     if (lines.reduce((sum, line) => sum + line.amountCents, 0) !== totalCents)
       throw new ApiError(400, "Los pagos deben coincidir con el total");
     return lines;
+  }
+  async function closeRateSegment(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    endedAt: Date,
+  ) {
+    await tx.sessionRateSegment.updateMany({
+      where: { sessionId, endedAt: null },
+      data: { endedAt },
+    });
+  }
+  async function openRateSegment(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    stationType: "PC" | "PS4" | "PS5" | "XBOX" | "NINTENDO_SWITCH" | "OTHER",
+    hourlyCents: number,
+    startedAt: Date,
+  ) {
+    await tx.sessionRateSegment.create({
+      data: { sessionId, stationType, hourlyCents, startedAt },
+    });
   }
   async function takePayment(
     tx: Prisma.TransactionClient,
@@ -1105,6 +1196,9 @@ export async function buildApp(
             hourlyCents,
             totalAmount: 0,
             endsAt: new Date(now.getTime() + 60 * 60 * 1000),
+            rateSegments: {
+              create: { stationType: station.type, hourlyCents, startedAt: now },
+            },
           },
         });
         await tx.station.update({ where: { id: station.id }, data: { status: "IN_USE" } });
@@ -1579,6 +1673,9 @@ export async function buildApp(
           hourlyCents,
           totalAmount: baseAmount,
           endsAt: minutes ? new Date(now.getTime() + minutes * 60000) : null,
+          rateSegments: {
+            create: { stationType: s.type, hourlyCents, startedAt: now },
+          },
         },
       });
       if (input.extraId)
@@ -1683,7 +1780,18 @@ export async function buildApp(
           throw new ApiError(409, "La sesión ya está en esa estación");
         const target = await tx.station.findUnique({
           where: { id: input.stationId },
-          select: { id: true, name: true, type: true, active: true, status: true },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            active: true,
+            status: true,
+            rates: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { hourlyCents: true },
+            },
+          },
         });
         if (!target?.active)
           throw new ApiError(404, "Estación de destino no encontrada");
@@ -1695,6 +1803,9 @@ export async function buildApp(
             409,
             "Solo puedes mover entre estaciones del mismo tipo; PS4 y PS5 son compatibles entre sí",
           );
+        const targetHourlyCents = target.rates[0]?.hourlyCents;
+        if (!targetHourlyCents)
+          throw new ApiError(409, "Configura una tarifa para la estación de destino");
         if (
           target.status !== "AVAILABLE" ||
           (await tx.session.findFirst({
@@ -1706,9 +1817,28 @@ export async function buildApp(
           }))
         )
           throw new ApiError(409, "La estación de destino no está disponible");
+        const now = new Date();
+        const lastSegment = old.rateSegments.at(-1);
+        const rateChanged =
+          !lastSegment ||
+          lastSegment.stationType !== target.type ||
+          lastSegment.hourlyCents !== targetHourlyCents;
+        if (rateChanged) {
+          await closeRateSegment(tx, id, now);
+          await openRateSegment(tx, id, target.type, targetHourlyCents, now);
+        }
+        const moved = await tx.session.update({
+          where: { id },
+          data: { stationId: target.id, hourlyCents: targetHourlyCents },
+          include: details,
+        });
+        const recalculated = view(moved, now);
         const updated = await tx.session.update({
           where: { id },
-          data: { stationId: target.id },
+          data: {
+            baseAmount: recalculated.baseAmount,
+            totalAmount: recalculated.totalAmount,
+          },
           include: details,
         });
         await tx.station.update({
@@ -1740,6 +1870,22 @@ export async function buildApp(
       editable(old);
       const now = new Date();
       const computed = view(old, now);
+      await closeRateSegment(
+        tx,
+        id,
+        old.mode === "FIXED"
+          ? old.endsAt
+            ? new Date(
+                old.endsAt.getTime() -
+                  old.extensions.reduce(
+                    (sum, extension) => sum + extension.minutesAdded,
+                    0,
+                  ) *
+                    60000,
+              )
+            : now
+          : now,
+      );
       const fullyPaid = paidAmount(old) >= computed.totalAmount;
       const closesFreeHour = !old.payments.length && computed.totalAmount === 0;
       const updated = await tx.session.update({
@@ -1789,6 +1935,7 @@ export async function buildApp(
         const seconds = old.mode === "FIXED" ? remainingSeconds(old, now) : null;
         if (old.mode === "FIXED" && !seconds)
           throw new ApiError(409, "La sesión ya terminó");
+        await closeRateSegment(tx, id, now);
         const updated = await tx.session.update({
           where: { id },
           data: {
@@ -1823,11 +1970,13 @@ export async function buildApp(
           throw new ApiError(409, "La sesión ya fue cerrada");
         if (old.payments.length)
           throw new ApiError(409, "Una sesión pagada debe conservarse");
+        const now = new Date();
+        await closeRateSegment(tx, id, now);
         const updated = await tx.session.update({
           where: { id },
           data: {
             status: "CANCELLED",
-            finishedAt: new Date(),
+            finishedAt: now,
             cancelReason: input.reason,
           },
           include: details,
@@ -1924,6 +2073,7 @@ export async function buildApp(
         const now = new Date();
         const seconds = remainingSeconds(old, now);
         if (!seconds) throw new ApiError(409, "La sesión ya terminó");
+        await closeRateSegment(tx, id, now);
         const code = await savedCode(tx);
         const updated = await tx.session.update({
           where: { id },
@@ -1973,14 +2123,34 @@ export async function buildApp(
           throw new ApiError(409, "La sesión libre no tiene una pausa válida");
         const original = await tx.station.findUnique({
           where: { id: old.stationId },
-          select: { id: true, type: true, active: true, status: true },
+          select: {
+            id: true,
+            type: true,
+            active: true,
+            status: true,
+            rates: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { hourlyCents: true },
+            },
+          },
         });
         if (!original?.active)
           throw new ApiError(409, "La estación original no está disponible");
         const target = input.stationId
           ? await tx.station.findUnique({
               where: { id: input.stationId },
-              select: { id: true, type: true, active: true, status: true },
+              select: {
+                id: true,
+                type: true,
+                active: true,
+                status: true,
+                rates: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: { hourlyCents: true },
+                },
+              },
             })
           : original.status === "AVAILABLE" ||
               (old.status === "PAUSED" && original.status === "IN_USE")
@@ -1993,12 +2163,25 @@ export async function buildApp(
                   id: { not: old.stationId },
                 },
                 orderBy: { name: "asc" },
-                select: { id: true, type: true, active: true, status: true },
+                select: {
+                  id: true,
+                  type: true,
+                  active: true,
+                  status: true,
+                  rates: {
+                    orderBy: { createdAt: "desc" },
+                    take: 1,
+                    select: { hourlyCents: true },
+                  },
+                },
               });
+        const consoleResume =
+          ["PS4", "PS5"].includes(original.type) &&
+          ["PS4", "PS5"].includes(target?.type ?? "");
         if (
           !target ||
           !target.active ||
-          target.type !== original.type ||
+          (target.type !== original.type && !consoleResume) ||
           (target.status !== "AVAILABLE" &&
             !(
               old.status === "PAUSED" &&
@@ -2011,10 +2194,14 @@ export async function buildApp(
             "No hay una estación disponible del mismo tipo",
           );
         const now = new Date();
+        const targetHourlyCents = target.rates[0]?.hourlyCents ?? old.hourlyCents;
+        await closeRateSegment(tx, id, now);
+        await openRateSegment(tx, id, target.type, targetHourlyCents, now);
         const updated = await tx.session.update({
           where: { id },
           data: {
             stationId: target.id,
+            hourlyCents: targetHourlyCents,
             startedAt: isOpen
               ? new Date(
                   old.startedAt.getTime() +
