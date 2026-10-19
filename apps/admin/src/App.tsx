@@ -247,9 +247,11 @@ type ReportView = {
     registers: {
       id: string;
       status: string;
+      shift: "MORNING" | "AFTERNOON";
       openedAt: string;
       closedAt: string | null;
       openingAmountCents: number;
+      nextOpeningAmountCents: number | null;
       cashSalesCents: number;
       digitalSalesCents: number;
       movementCents: number;
@@ -396,6 +398,7 @@ export function App() {
   const [cash, setCash] = useState<{
     register: {
       id: string;
+      shift: "MORNING" | "AFTERNOON";
       openingAmount: number;
       expectedAmount: number;
       status: string;
@@ -404,11 +407,17 @@ export function App() {
     } | null;
     lastClosed: {
       id: string;
+      shift: "MORNING" | "AFTERNOON";
+      openingAmount: number;
       closingAmount: number | null;
+      nextOpeningAmount: number | null;
       closedAt: string | null;
       difference: number | null;
     } | null;
   }>({ register: null, lastClosed: null });
+  const [cashShift, setCashShift] = useState<"MORNING" | "AFTERNOON">(
+    "MORNING",
+  );
   const [selected, setSelected] = useState<string | null>(null),
     [continuePaidSessionId, setContinuePaidSessionId] = useState<string | null>(null),
     [filter, setFilter] = useState("ALL"),
@@ -585,6 +594,8 @@ export function App() {
     setExtras(list);
     setProducts(productList);
     setCash(cashList);
+    if (!cashList.register && cashList.lastClosed)
+      setCashShift(cashList.lastClosed.shift === "MORNING" ? "AFTERNOON" : "MORNING");
     setInventoryMovements(movementList);
     setSavedSessions(saved);
     setLoyaltyCards(cards);
@@ -1472,7 +1483,7 @@ export function App() {
                           <div className="cash-register-row" key={register.id}>
                             <div>
                               <strong>
-                                {register.status === "OPEN" ? "Turno abierto" : "Turno cerrado"}
+                                {register.status === "OPEN" ? "Turno abierto" : "Turno cerrado"} · {register.shift === "MORNING" ? "Mañana" : "Tarde"}
                               </strong>
                               <small>
                                 {stamp(register.openedAt)} · Abrió: {register.openedByName}
@@ -1484,6 +1495,9 @@ export function App() {
                               <span>Esperado {currency(register.expectedAmountCents)}</span>
                               <span>
                                 Contado {register.closingAmountCents == null ? "Pendiente" : currency(register.closingAmountCents)}
+                              </span>
+                              <span>
+                                Sencillo siguiente {register.nextOpeningAmountCents == null ? "—" : currency(register.nextOpeningAmountCents)}
                               </span>
                               <strong className={register.differenceCents == null ? "" : register.differenceCents === 0 ? "cash-ok" : "cash-difference"}>
                                 {register.differenceCents == null ? "Sin cierre" : `Diferencia ${currency(register.differenceCents)}`}
@@ -2169,18 +2183,19 @@ export function App() {
                       void run(async () => {
                         await api("/cash/open", {
                           openingAmount: parseCents(String(f.get("opening"))),
+                          shift: String(f.get("shift")),
                         });
                         setNotice("Caja abierta correctamente.");
                       });
                     }}
                   >
-                    {cash.lastClosed?.closingAmount != null && (
+                    {cash.lastClosed?.nextOpeningAmount != null && (
                       <div className="cash-handoff-note">
                         <strong>
-                          Caja recibida del turno anterior: {currency(cash.lastClosed.closingAmount)}
+                          Caja recibida del turno anterior: {currency(cash.lastClosed.nextOpeningAmount)}
                         </strong>
                         <small>
-                          Cuenta el efectivo y confirma el monto encontrado para abrir tu turno.
+                          El turno anterior dejó este sencillo. Cuenta el efectivo y confirma el monto encontrado.
                         </small>
                       </div>
                     )}
@@ -2189,6 +2204,19 @@ export function App() {
                       Los pagos digitales no forman parte de este monto.
                     </p>
                     <label>
+                      Turno
+                      <select
+                        name="shift"
+                        value={cashShift}
+                        onChange={(event) =>
+                          setCashShift(event.target.value as "MORNING" | "AFTERNOON")
+                        }
+                      >
+                        <option value="MORNING">Mañana · 10:00 a. m. – 3:00 p. m.</option>
+                        <option value="AFTERNOON">Tarde · 3:00 p. m. – 10:00 p. m.</option>
+                      </select>
+                    </label>
+                    <label>
                       Monto de apertura (S/)
                       <input
                         name="opening"
@@ -2196,14 +2224,14 @@ export function App() {
                         pattern="\d+(\.\d{1,2})?"
                         placeholder="0.00"
                         defaultValue={
-                          cash.lastClosed?.closingAmount != null
-                            ? (cash.lastClosed.closingAmount / 100).toFixed(2)
+                          cash.lastClosed?.nextOpeningAmount != null
+                            ? (cash.lastClosed.nextOpeningAmount / 100).toFixed(2)
                             : undefined
                         }
                       />
                     </label>
                     <Button disabled={busy}>
-                      {cash.lastClosed?.closingAmount != null
+                      {cash.lastClosed?.nextOpeningAmount != null
                         ? "Recibir caja y abrir turno"
                         : "Abrir caja"}
                     </Button>
@@ -2211,6 +2239,12 @@ export function App() {
                 ) : (
                   <div>
                     <div className="receipt">
+                      <div>
+                        <span>Turno</span>
+                        <strong>
+                          {cash.register.shift === "MORNING" ? "Mañana" : "Tarde"}
+                        </strong>
+                      </div>
                       <div>
                         <span>Apertura</span>
                         <strong>{currency(cash.register.openingAmount)}</strong>
@@ -2235,8 +2269,9 @@ export function App() {
                       </div>
                     </div>
                     <p className="cash-handoff-help">
-                      Al cerrar, el efectivo contado quedará como referencia
-                      para que el siguiente turno reciba la caja.
+                      El efectivo digital no está en la caja. Al cerrar puedes
+                      indicar cuánto sencillo queda para el siguiente turno;
+                      el excedente se registra como retiro de cierre.
                     </p>
                     <form
                       onSubmit={(e) => {
@@ -2245,6 +2280,9 @@ export function App() {
                         void run(async () => {
                           await api("/cash/close", {
                             closingAmount: parseCents(String(f.get("closing"))),
+                            nextOpeningAmount: String(f.get("nextOpening") ?? "").trim()
+                              ? parseCents(String(f.get("nextOpening")))
+                              : undefined,
                           });
                           setNotice("Turno cerrado y caja entregada.");
                         });
@@ -2258,6 +2296,20 @@ export function App() {
                           pattern="\d+(\.\d{1,2})?"
                           placeholder="0.00"
                         />
+                      </label>
+                      <label>
+                        Sencillo para el siguiente turno (S/)
+                        <input
+                          name="nextOpening"
+                          pattern="\d+(\.\d{1,2})?"
+                          placeholder={cash.register.shift === "AFTERNOON" ? "20.00" : "Monto contado"}
+                          defaultValue={cash.register.shift === "AFTERNOON" ? "20.00" : undefined}
+                        />
+                        <small>
+                          {cash.register.shift === "AFTERNOON"
+                            ? "Normalmente se deja el sencillo para la siguiente mañana."
+                            : "Déjalo vacío si todo el efectivo pasa al turno de la tarde."}
+                        </small>
                       </label>
                       <Button variant="outline" disabled={busy}>
                         Cerrar turno y entregar caja

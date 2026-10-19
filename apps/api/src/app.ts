@@ -953,7 +953,12 @@ export async function buildApp(
       orderBy: { openedAt: "asc" },
     });
     const registerRows = cashRegisters
-      .filter((register) => reportShiftMatches(register.openedAt, shift))
+      .filter(
+        (register) =>
+          shift === "all" ||
+          (shift === "morning" && register.shift === "MORNING") ||
+          (shift === "afternoon" && register.shift === "AFTERNOON"),
+      )
       .map((register) => {
         const paymentsInRange = register.payments.filter(
           (payment) =>
@@ -984,9 +989,11 @@ export async function buildApp(
         return {
           id: register.id,
           status: register.status,
+          shift: register.shift,
           openedAt: register.openedAt,
           closedAt: register.closedAt,
           openingAmountCents: register.openingAmount,
+          nextOpeningAmountCents: register.nextOpeningAmount,
           cashSalesCents: paymentsInRange
             .filter((payment) => payment.method === "CASH")
             .reduce((sum, payment) => sum + payment.amountCents, 0),
@@ -2434,13 +2441,15 @@ export async function buildApp(
         payments: true,
       },
     });
-    const lastClosed = await db.cashRegister.findFirst({
+    const closedRegister = await db.cashRegister.findFirst({
       where: { status: "CLOSED", closingAmount: { not: null } },
       orderBy: { closedAt: "desc" },
       select: {
         id: true,
+        shift: true,
         openingAmount: true,
         closingAmount: true,
+        nextOpeningAmount: true,
         expectedAmount: true,
         difference: true,
         openedAt: true,
@@ -2449,6 +2458,13 @@ export async function buildApp(
         closedBy: true,
       },
     });
+    const lastClosed = closedRegister
+      ? {
+          ...closedRegister,
+          nextOpeningAmount:
+            closedRegister.nextOpeningAmount ?? closedRegister.closingAmount,
+        }
+      : null;
     if (!register) return { register: null, lastClosed };
     const expectedAmount =
       register.openingAmount +
@@ -2480,7 +2496,11 @@ export async function buildApp(
       if (await tx.cashRegister.findFirst({ where: { status: "OPEN" } }))
         throw new ApiError(409, "Ya existe una caja abierta");
       const register = await tx.cashRegister.create({
-        data: { openingAmount: data.openingAmount, openedBy: actor(req).id },
+        data: {
+          openingAmount: data.openingAmount,
+          shift: data.shift,
+          openedBy: actor(req).id,
+        },
       });
       await tx.cashMovement.create({
         data: {
@@ -2536,17 +2556,36 @@ export async function buildApp(
     return mutate(req, async (tx) => {
       const register = await openCash(tx);
       const expectedAmount = await cashExpected(tx, register.id);
+      const nextOpeningAmount = data.nextOpeningAmount ?? data.closingAmount;
+      if (nextOpeningAmount > data.closingAmount)
+        throw new ApiError(
+          400,
+          "El sencillo del siguiente turno no puede superar el efectivo contado.",
+        );
       const closed = await tx.cashRegister.update({
         where: { id: register.id },
         data: {
           status: "CLOSED",
           closingAmount: data.closingAmount,
+          nextOpeningAmount,
           expectedAmount,
           difference: data.closingAmount - expectedAmount,
           closedBy: actor(req).id,
           closedAt: new Date(),
         },
       });
+      const withdrawalAmount = data.closingAmount - nextOpeningAmount;
+      if (withdrawalAmount > 0)
+        await tx.cashMovement.create({
+          data: {
+            cashRegisterId: register.id,
+            type: "WITHDRAWAL",
+            amount: withdrawalAmount,
+            method: "CASH",
+            reason: `Retiro de cierre; se deja ${nextOpeningAmount / 100} para el siguiente turno`,
+            createdBy: actor(req).id,
+          },
+        });
       await audit(
         tx,
         req,

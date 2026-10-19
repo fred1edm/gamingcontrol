@@ -207,6 +207,10 @@ enum CashRegisterStatus {
   OPEN
   CLOSED
 }
+enum CashShift {
+  MORNING
+  AFTERNOON
+}
 enum CashMovementType {
   OPENING
   PAYMENT
@@ -217,8 +221,10 @@ enum CashMovementType {
 model CashRegister {
   id String @id @default(uuid()) @db.Uuid
   status CashRegisterStatus @default(OPEN)
+  shift CashShift @default(MORNING)
   openingAmount Int
   closingAmount Int?
+  nextOpeningAmount Int?
   expectedAmount Int?
   difference Int?
   openedBy String @db.Uuid

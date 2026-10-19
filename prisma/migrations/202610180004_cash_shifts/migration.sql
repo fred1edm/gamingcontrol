@@ -1,0 +1,5 @@
+CREATE TYPE "CashShift" AS ENUM ('MORNING', 'AFTERNOON');
+
+ALTER TABLE "CashRegister"
+ADD COLUMN "shift" "CashShift" NOT NULL DEFAULT 'MORNING',
+ADD COLUMN "nextOpeningAmount" INTEGER;

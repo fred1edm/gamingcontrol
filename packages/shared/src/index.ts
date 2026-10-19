@@ -121,8 +121,14 @@ export const sessionMoveInput = z.object({
 export const sessionCancelInput = z.object({
   reason: z.string().trim().min(3).max(240),
 });
-export const cashOpenInput = z.object({ openingAmount: money });
-export const cashCloseInput = z.object({ closingAmount: money });
+export const cashOpenInput = z.object({
+  openingAmount: money,
+  shift: z.enum(["MORNING", "AFTERNOON"]).default("MORNING"),
+});
+export const cashCloseInput = z.object({
+  closingAmount: money,
+  nextOpeningAmount: money.optional(),
+});
 export const cashMovementInput = z.object({
   type: z.enum(["INCOME", "WITHDRAWAL", "ADJUSTMENT"]),
   amount: money.refine((n) => n > 0),

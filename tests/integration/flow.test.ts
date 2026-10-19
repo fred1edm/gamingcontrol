@@ -680,7 +680,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
     async () => {
       const opened = await write(
         "/cash/open",
-        { openingAmount: 1000 },
+        { openingAmount: 1000, shift: "MORNING" },
         randomUUID(),
         token,
       );
@@ -713,7 +713,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(current.register.expectedAmount, 3200);
       const closedMorning = await write(
         "/cash/close",
-        { closingAmount: 3200 },
+        { closingAmount: 3200, nextOpeningAmount: 3200 },
         randomUUID(),
         token,
       );
@@ -725,12 +725,25 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       );
       const handoff = (await read("/cash/current", token)).json<{
         register: unknown;
-        lastClosed: { closingAmount: number };
+        lastClosed: {
+          shift: string;
+          closingAmount: number;
+          nextOpeningAmount: number;
+        };
       }>();
       assert.equal(handoff.register, null);
+      assert.equal(handoff.lastClosed.shift, "MORNING");
       assert.equal(handoff.lastClosed.closingAmount, 3200);
+      assert.equal(handoff.lastClosed.nextOpeningAmount, 3200);
       assert.equal(
-        (await write("/cash/open", { openingAmount: 3200 }, randomUUID(), token))
+        (
+          await write(
+            "/cash/open",
+            { openingAmount: 3200, shift: "AFTERNOON" },
+            randomUUID(),
+            token,
+          )
+        )
           .statusCode,
         200,
       );
@@ -758,8 +771,52 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         "PAID",
       );
       assert.equal(
-        (await write("/cash/close", { closingAmount: 3200 }, randomUUID(), token))
+        (
+          await write(
+            "/cash/close",
+            { closingAmount: 3200, nextOpeningAmount: 1000 },
+            randomUUID(),
+            token,
+          )
+        )
           .statusCode,
+        200,
+      );
+      const closingWithdrawal = await db.cashMovement.findFirst({
+        where: { type: "WITHDRAWAL", reason: { contains: "siguiente turno" } },
+        orderBy: { createdAt: "desc" },
+      });
+      assert.equal(closingWithdrawal?.amount, 2200);
+      const nextMorning = (await read("/cash/current", token)).json<{
+        lastClosed: { shift: string; nextOpeningAmount: number };
+      }>();
+      assert.equal(nextMorning.lastClosed.shift, "AFTERNOON");
+      assert.equal(nextMorning.lastClosed.nextOpeningAmount, 1000);
+      assert.equal(
+        (
+          await write(
+            "/cash/open",
+            { openingAmount: 1000, shift: "MORNING" },
+            randomUUID(),
+            token,
+          )
+        ).statusCode,
+        200,
+      );
+      const reopened = (await read("/cash/current", token)).json<{
+        register: { shift: string; openingAmount: number };
+      }>();
+      assert.equal(reopened.register.shift, "MORNING");
+      assert.equal(reopened.register.openingAmount, 1000);
+      assert.equal(
+        (
+          await write(
+            "/cash/close",
+            { closingAmount: 1000, nextOpeningAmount: 1000 },
+            randomUUID(),
+            token,
+          )
+        ).statusCode,
         200,
       );
     },
