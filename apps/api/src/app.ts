@@ -1410,18 +1410,27 @@ export async function buildApp(
       }
       if (card.stampCount !== 12 || !card.snackKitAvailable)
         throw new ApiError(409, "El kit de snacks se habilita al completar 12 sellos");
-      if (!input.sodaProductId || !input.snackProductId)
-        throw new ApiError(400, "Selecciona una bebida y un snack para el kit");
-      if (input.sodaProductId === input.snackProductId)
+      const configuredKit = await tx.setting.findMany({
+        where: { key: { in: ["LOYALTY_SODA_PRODUCT_ID", "LOYALTY_SNACK_PRODUCT_ID"] } },
+      });
+      const sodaProductId =
+        input.sodaProductId ??
+        configuredKit.find((setting) => setting.key === "LOYALTY_SODA_PRODUCT_ID")?.value;
+      const snackProductId =
+        input.snackProductId ??
+        configuredKit.find((setting) => setting.key === "LOYALTY_SNACK_PRODUCT_ID")?.value;
+      if (!sodaProductId || !snackProductId)
+        throw new ApiError(400, "Configura la bebida y el snack del kit en Configuración");
+      if (sodaProductId === snackProductId)
         throw new ApiError(400, "La bebida y el snack deben ser productos distintos");
       const kitProducts = await tx.product.findMany({
         where: {
-          id: { in: [input.sodaProductId, input.snackProductId] },
+          id: { in: [sodaProductId, snackProductId] },
           active: true,
         },
       });
-      const soda = kitProducts.find((product) => product.id === input.sodaProductId);
-      const snack = kitProducts.find((product) => product.id === input.snackProductId);
+      const soda = kitProducts.find((product) => product.id === sodaProductId);
+      const snack = kitProducts.find((product) => product.id === snackProductId);
       if (!soda || !snack) throw new ApiError(404, "Uno de los productos del kit no está disponible");
       if (soda.category !== "BEVERAGE")
         throw new ApiError(400, `${soda.name} no está clasificado como bebida`);
@@ -1581,6 +1590,8 @@ export async function buildApp(
             "ALERT_FIRST_MINUTES",
             "ALERT_SECOND_MINUTES",
             "NOTIFICATION_SOUND",
+            "LOYALTY_SODA_PRODUCT_ID",
+            "LOYALTY_SNACK_PRODUCT_ID",
           ],
         },
       },
@@ -1595,6 +1606,20 @@ export async function buildApp(
       NOTIFICATION_SOUND:
         rows.find((row) => row.key === "NOTIFICATION_SOUND")?.value ??
         notificationSoundValues[0],
+      LOYALTY_SODA_PRODUCT_ID:
+        rows.find((row) => row.key === "LOYALTY_SODA_PRODUCT_ID")?.value ?? "",
+      LOYALTY_SNACK_PRODUCT_ID:
+        rows.find((row) => row.key === "LOYALTY_SNACK_PRODUCT_ID")?.value ?? "",
+    };
+  });
+  app.get("/settings/loyalty-kit", async (req) => {
+    actor(req);
+    const rows = await db.setting.findMany({
+      where: { key: { in: ["LOYALTY_SODA_PRODUCT_ID", "LOYALTY_SNACK_PRODUCT_ID"] } },
+    });
+    return {
+      sodaProductId: rows.find((row) => row.key === "LOYALTY_SODA_PRODUCT_ID")?.value ?? "",
+      snackProductId: rows.find((row) => row.key === "LOYALTY_SNACK_PRODUCT_ID")?.value ?? "",
     };
   });
   app.get("/settings/notification-sound", async (req) => {
@@ -1630,6 +1655,23 @@ export async function buildApp(
               .parse(raw.value),
           }
         : settingInput.parse(raw);
+    if (
+      input.key === "LOYALTY_SODA_PRODUCT_ID" ||
+      input.key === "LOYALTY_SNACK_PRODUCT_ID"
+    ) {
+      if (input.value) {
+        const product = await db.product.findUnique({ where: { id: input.value } });
+        const expectedCategory =
+          input.key === "LOYALTY_SODA_PRODUCT_ID" ? "BEVERAGE" : "SNACK";
+        if (!product?.active || product.category !== expectedCategory)
+          throw new ApiError(
+            400,
+            input.key === "LOYALTY_SODA_PRODUCT_ID"
+              ? "Selecciona un producto activo clasificado como bebida"
+              : "Selecciona un producto activo clasificado como snack",
+          );
+      }
+    }
     return mutate(req, async (tx) => {
       const old = await tx.setting.findUnique({ where: { key: input.key } });
       const setting = await tx.setting.upsert({
@@ -1652,10 +1694,13 @@ export async function buildApp(
       );
       return {
         key: setting.key,
-        value:
-          input.key === "NOTIFICATION_SOUND"
-            ? setting.value
-            : Number(setting.value),
+        value: [
+          "NOTIFICATION_SOUND",
+          "LOYALTY_SODA_PRODUCT_ID",
+          "LOYALTY_SNACK_PRODUCT_ID",
+        ].includes(input.key)
+          ? setting.value
+          : Number(setting.value),
       };
     });
   });

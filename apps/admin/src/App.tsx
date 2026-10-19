@@ -381,6 +381,8 @@ export function App() {
     first: 10,
     second: 5,
     sound: "fahhhhh",
+    loyaltySodaProductId: "",
+    loyaltySnackProductId: "",
   });
   const [notifications, setNotifications] = useState<
     { id: string; title: string; message: string; createdAt: string }[]
@@ -460,8 +462,6 @@ export function App() {
   const [quickSaleQuantity, setQuickSaleQuantity] = useState(1);
   const [chosenLoyaltyCard, setChosenLoyaltyCard] = useState("");
   const [chosenLoyaltyStation, setChosenLoyaltyStation] = useState("");
-  const [chosenLoyaltySoda, setChosenLoyaltySoda] = useState("");
-  const [chosenLoyaltySnack, setChosenLoyaltySnack] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [splitSessionPayment, setSplitSessionPayment] = useState(false);
   const [sessionPaymentLines, setSessionPaymentLines] = useState<PaymentDraft[]>(
@@ -575,6 +575,7 @@ export function App() {
       saved,
       cards,
       sound,
+      loyaltyKit,
     ] =
       await Promise.all([
         api<StationsResponse>("/stations"),
@@ -587,6 +588,7 @@ export function App() {
         ),
         api<LoyaltyCardView[]>("/loyalty/cards"),
         api<{ sound: string }>("/settings/notification-sound"),
+        api<{ sodaProductId: string; snackProductId: string }>("/settings/loyalty-kit"),
       ]);
     clock.current = {
       server: Date.parse(data.serverTime),
@@ -602,7 +604,12 @@ export function App() {
     setInventoryMovements(movementList);
     setSavedSessions(saved);
     setLoyaltyCards(cards);
-    setSettings((current) => ({ ...current, sound: sound.sound }));
+    setSettings((current) => ({
+      ...current,
+      sound: sound.sound,
+      loyaltySodaProductId: loyaltyKit.sodaProductId,
+      loyaltySnackProductId: loyaltyKit.snackProductId,
+    }));
     setConnected(true);
   }, [api]);
   useEffect(() => {
@@ -718,6 +725,8 @@ export function App() {
             first: Number(value.ALERT_FIRST_MINUTES ?? 10),
             second: Number(value.ALERT_SECOND_MINUTES ?? 5),
             sound: String(value.NOTIFICATION_SOUND ?? "fahhhhh"),
+            loyaltySodaProductId: String(value.LOYALTY_SODA_PRODUCT_ID ?? ""),
+            loyaltySnackProductId: String(value.LOYALTY_SNACK_PRODUCT_ID ?? ""),
           }),
         )
         .catch((e) => setError(e.message));
@@ -2105,49 +2114,29 @@ export function App() {
                           )}
                           {card.snackKitAvailable && (
                             <>
-                              <select
-                                value={chosenLoyaltySoda}
-                                onChange={(e) => setChosenLoyaltySoda(e.target.value)}
-                                aria-label={`Bebida del kit de ${card.customerName}`}
-                              >
-                                <option value="">Elegir bebida…</option>
-                                {products
-                                  .filter((product) => product.category === "BEVERAGE" && product.stockCurrent > 0)
-                                  .map((product) => (
-                                    <option key={product.id} value={product.id}>
-                                      {product.name} · {product.stockCurrent} disponibles
-                                    </option>
-                                  ))}
-                              </select>
-                              <select
-                                value={chosenLoyaltySnack}
-                                onChange={(e) => setChosenLoyaltySnack(e.target.value)}
-                                aria-label={`Snack del kit de ${card.customerName}`}
-                              >
-                                <option value="">Elegir snack…</option>
-                                {products
-                                  .filter((product) => product.category === "SNACK" && product.stockCurrent > 0)
-                                  .map((product) => (
-                                    <option key={product.id} value={product.id}>
-                                      {product.name} · {product.stockCurrent} disponibles
-                                    </option>
-                                  ))}
-                              </select>
+                              <div className="info loyalty-kit-configured">
+                                <Gift size={18} />
+                                <p>
+                                  Kit configurado: {products.find((product) => product.id === settings.loyaltySodaProductId)?.name ?? "bebida pendiente"}
+                                  {" + "}
+                                  {products.find((product) => product.id === settings.loyaltySnackProductId)?.name ?? "snack pendiente"}
+                                </p>
+                              </div>
                               <Button
                                 type="button"
-                                disabled={busy || !chosenLoyaltySoda || !chosenLoyaltySnack || chosenLoyaltySoda === chosenLoyaltySnack}
+                                disabled={
+                                  busy ||
+                                  !settings.loyaltySodaProductId ||
+                                  !settings.loyaltySnackProductId
+                                }
                                 onClick={() =>
                                   void run(async () => {
                                     await api(`/loyalty/cards/${card.id}/redeem`, {
                                       rewardType: "SNACK_KIT",
-                                      sodaProductId: chosenLoyaltySoda,
-                                      snackProductId: chosenLoyaltySnack,
                                     });
-                                    const soda = products.find((product) => product.id === chosenLoyaltySoda);
-                                    const snack = products.find((product) => product.id === chosenLoyaltySnack);
+                                    const soda = products.find((product) => product.id === settings.loyaltySodaProductId);
+                                    const snack = products.find((product) => product.id === settings.loyaltySnackProductId);
                                     setNotice(`Kit canjeado: ${soda?.name ?? "bebida"} y ${snack?.name ?? "snack"}.`);
-                                    setChosenLoyaltySoda("");
-                                    setChosenLoyaltySnack("");
                                   })
                                 }
                               >
@@ -2560,6 +2549,81 @@ export function App() {
                   </p>
                 </div>
               </div>
+              <form
+                className="panel loyalty-kit-settings"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void run(async () => {
+                    await api(
+                      "/settings",
+                      {
+                        key: "LOYALTY_SODA_PRODUCT_ID",
+                        value: settings.loyaltySodaProductId,
+                      },
+                      "PUT",
+                    );
+                    await api(
+                      "/settings",
+                      {
+                        key: "LOYALTY_SNACK_PRODUCT_ID",
+                        value: settings.loyaltySnackProductId,
+                      },
+                      "PUT",
+                    );
+                    setNotice("Kit de fidelización actualizado.");
+                  });
+                }}
+              >
+                <h2>Kit de fidelización</h2>
+                <p>Estos productos se entregan automáticamente al completar 12 sellos.</p>
+                <label>
+                  Bebida del kit
+                  <select
+                    value={settings.loyaltySodaProductId}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, loyaltySodaProductId: e.target.value }))
+                    }
+                  >
+                    <option value="">Seleccionar bebida…</option>
+                    {products
+                      .filter((product) => product.category === "BEVERAGE")
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Snack del kit
+                  <select
+                    value={settings.loyaltySnackProductId}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, loyaltySnackProductId: e.target.value }))
+                    }
+                  >
+                    <option value="">Seleccionar snack…</option>
+                    {products
+                      .filter((product) => product.category === "SNACK")
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div className="settings-actions">
+                  <Button
+                    disabled={
+                      busy ||
+                      !settings.loyaltySodaProductId ||
+                      !settings.loyaltySnackProductId
+                    }
+                  >
+                    Guardar kit
+                  </Button>
+                </div>
+              </form>
               <form
                 className="panel"
                 onSubmit={(e) => {

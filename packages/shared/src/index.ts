@@ -170,6 +170,10 @@ export const settingInput = z.union([
     key: z.literal("NOTIFICATION_SOUND"),
     value: notificationSoundInput,
   }),
+  z.object({
+    key: z.enum(["LOYALTY_SODA_PRODUCT_ID", "LOYALTY_SNACK_PRODUCT_ID"]),
+    value: z.string().uuid().or(z.literal("")),
+  }),
 ]);
 export const events = {
   stationUpdated: "station:updated",
