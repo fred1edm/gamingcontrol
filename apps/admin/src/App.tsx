@@ -1359,6 +1359,11 @@ export function App() {
                 </div>
                 {report && (
                   <small>
+                    Turno: {report.shift === "all"
+                      ? "Todos"
+                      : report.shift === "morning"
+                        ? "Mañana · 10:00–15:00"
+                        : "Tarde · 15:00–22:00"}{" · "}
                     {stamp(report.from)} — {stamp(report.to)}
                   </small>
                 )}
