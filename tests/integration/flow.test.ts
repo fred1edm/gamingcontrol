@@ -1056,6 +1056,35 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         });
     },
   );
+  await t.test(
+    "ADMIN puede eliminar un trabajador sin borrar su auditoría",
+    async () => {
+      const employee = await db.user.findUniqueOrThrow({
+        where: { email: `employee-edit-${tag}@test.local` },
+        select: { id: true },
+      });
+      const removed = await write(
+        `/users/${employee.id}`,
+        {},
+        randomUUID(),
+        token,
+        "DELETE",
+      );
+      assert.equal(removed.statusCode, 200);
+      assert.equal(removed.json<{ active: boolean }>().active, false);
+      const users = (await read("/users", token)).json<{ id: string }[]>();
+      assert.equal(users.some((user) => user.id === employee.id), false);
+      assert.equal(
+        (
+          await write("/auth/login", {
+            email: `employee-edit-${tag}@test.local`,
+            password: "integration-password-456",
+          })
+        ).statusCode,
+        401,
+      );
+    },
+  );
 });
 await app.close();
 await db.$disconnect();

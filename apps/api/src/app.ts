@@ -1045,6 +1045,7 @@ export async function buildApp(
   app.get("/users", async (req) => {
     admin(req);
     return db.user.findMany({
+      where: { active: true },
       select: { id: true, name: true, email: true, role: true, active: true },
       orderBy: { name: "asc" },
     });
@@ -1103,6 +1104,35 @@ export async function buildApp(
       await audit(tx, req, "PASSWORD_RESET", "User", id, null, {
         userId: id,
       });
+      return u;
+    });
+  });
+  app.delete("/users/:id", async (req) => {
+    const current = actor(req);
+    admin(req);
+    const id = idOf(req);
+    if (id === current.id)
+      throw new ApiError(409, "No puedes eliminar tu propio usuario");
+    return mutate(req, async (tx) => {
+      const old = await tx.user.findUnique({ where: { id } });
+      if (!old || !old.active)
+        throw new ApiError(404, "Trabajador no encontrado");
+      if (old.role === "ADMIN") {
+        const activeAdmins = await tx.user.count({
+          where: { role: "ADMIN", active: true },
+        });
+        if (activeAdmins <= 1)
+          throw new ApiError(
+            409,
+            "Debe quedar al menos un administrador activo",
+          );
+      }
+      const u = await tx.user.update({
+        where: { id },
+        data: { active: false },
+        select: { id: true, name: true, email: true, role: true, active: true },
+      });
+      await audit(tx, req, "USER_DELETED", "User", id, old, u);
       return u;
     });
   });

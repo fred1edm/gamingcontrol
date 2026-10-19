@@ -401,7 +401,7 @@ export function App() {
   const [cancelSessionId, setCancelSessionId] = useState<string | null>(null),
     [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: "station" | "product";
+    type: "station" | "product" | "user";
     id: string;
     name: string;
   } | null>(null);
@@ -2591,6 +2591,22 @@ export function App() {
                       >
                         <Key size={16} />
                       </Button>
+                      {u.id !== user?.id && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          aria-label={`Eliminar ${u.name}`}
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "user",
+                              id: u.id,
+                              name: u.name,
+                            })
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3487,12 +3503,17 @@ export function App() {
               </Button>
             </div>
             <h2 id="delete-title">
-              ¿Eliminar{" "}
-              {deleteTarget.type === "station" ? "estación" : "producto"}?
+              ¿Eliminar {deleteTarget.type === "station"
+                ? "estación"
+                : deleteTarget.type === "product"
+                  ? "producto"
+                  : "trabajador"}?
             </h2>
             <p>
-              <strong>{deleteTarget.name}</strong> dejará de aparecer en la
-              operación diaria. Su historial se conservará.
+              <strong>{deleteTarget.name}</strong>{" "}
+              {deleteTarget.type === "user"
+                ? "perderá el acceso al sistema. Sus acciones e historial se conservarán."
+                : "dejará de aparecer en la operación diaria. Su historial se conservará."}
             </p>
             <div className="confirm-actions">
               <Button
@@ -3503,14 +3524,20 @@ export function App() {
                     const path =
                       deleteTarget.type === "station"
                         ? `/stations/${deleteTarget.id}`
-                        : `/products/${deleteTarget.id}`;
+                        : deleteTarget.type === "product"
+                          ? `/products/${deleteTarget.id}`
+                          : `/users/${deleteTarget.id}`;
                     await api(path, {}, "DELETE");
                     if (deleteTarget.type === "station")
                       setStations((current) =>
                         current.filter((item) => item.id !== deleteTarget.id),
                       );
-                    else
+                    else if (deleteTarget.type === "product")
                       setProducts((current) =>
+                        current.filter((item) => item.id !== deleteTarget.id),
+                      );
+                    else
+                      setUsers((current) =>
                         current.filter((item) => item.id !== deleteTarget.id),
                       );
                     setNotice(`${deleteTarget.name} fue eliminado.`);
