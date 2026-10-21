@@ -66,6 +66,21 @@ const currency = (c: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(
     c / 100,
   );
+function groupSessionProducts(sales: SessionView["sales"]) {
+  type Item = SessionView["sales"][number]["items"][number];
+  const grouped = new Map<string, Item>();
+  for (const item of sales.flatMap((sale) => sale.items)) {
+    const key = `${item.productName}::${item.unitPriceCents}`;
+    const current = grouped.get(key);
+    if (current) {
+      current.quantity += item.quantity;
+      current.subtotalCents += item.subtotalCents;
+    } else {
+      grouped.set(key, { ...item });
+    }
+  }
+  return Array.from(grouped.values());
+}
 type PaymentDraft = { method: string; amount: string };
 const paymentMethodOptions = [
   ["CASH", "Efectivo"],
@@ -3066,9 +3081,7 @@ export function App() {
                         <strong>{currency(e.total)}</strong>
                       </div>
                     ))}
-                    {session.sales
-                      .flatMap((sale) => sale.items)
-                      .map((item) => (
+                    {groupSessionProducts(session.sales).map((item) => (
                         <div key={item.id}>
                           <span>
                             {item.productName} × {item.quantity}
