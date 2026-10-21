@@ -2571,7 +2571,7 @@ export async function buildApp(
                   old.startedAt.getTime() +
                     (now.getTime() - old.pausedAt!.getTime()),
                 )
-              : now,
+              : old.startedAt,
             endsAt: isOpen ? null : new Date(now.getTime() + seconds! * 1000),
             status: "ACTIVE",
             finishedAt: null,

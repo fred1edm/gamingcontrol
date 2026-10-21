@@ -259,3 +259,7 @@ La cancelación ahora exige un motivo, lo guarda en `Session.cancelReason` y lo 
 
 Tarjetas incorpora edición de nombre (`PATCH /loyalty/cards/:id`) y eliminación lógica (`DELETE /loyalty/cards/:id`). La UI usa modales y conserva sellos, premios, canjes e historial; ambas acciones generan auditoría y evento `loyalty:updated`.
 
+## fixed_session_pause_resume
+
+Al reanudar una sesión fija, `startedAt` debe conservar el inicio original y `endsAt` reconstruirse con `pausedRemainingSeconds`. Reiniciar `startedAt` hacía parecer que el tiempo de uso volvía a cero y alteraba los cálculos basados en segmentos. Se agregó regresión de integración para una sesión de 60 minutos pausada tras 30; requiere `TEST_DATABASE_URL` aislado terminado en `_test`.
+

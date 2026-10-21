@@ -1096,15 +1096,31 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
           minutes: 60,
         })
       ).json<SessionView>();
+      const startedAt = new Date(Date.now() - 30 * 60_000);
+      await db.session.update({
+        where: { id: started.id },
+        data: {
+          startedAt,
+          endsAt: new Date(startedAt.getTime() + 60 * 60_000),
+        },
+      });
       const paused = (
         await write(`/sessions/${started.id}/pause`, {})
       ).json<SessionView>();
       assert.equal(paused.status, "PAUSED");
-      assert.ok((paused.pausedRemainingSeconds ?? 0) > 0);
+      assert.ok(
+        (paused.pausedRemainingSeconds ?? 0) > 29 * 60 &&
+          (paused.pausedRemainingSeconds ?? 0) <= 30 * 60,
+      );
       const resumed = (
         await write(`/sessions/${started.id}/resume`, {})
       ).json<SessionView>();
       assert.equal(resumed.status, "ACTIVE");
+      assert.equal(resumed.startedAt, startedAt.toISOString());
+      assert.ok(
+        Date.parse(resumed.endsAt!) - Date.parse(resumed.startedAt) >
+          59 * 60_000,
+      );
       assert.equal(
         (
           await write(`/sessions/${started.id}/cancel`, {
