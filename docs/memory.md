@@ -16,6 +16,8 @@ Estaciones: ADMIN puede desactivar una estación desde su tarjeta (`DELETE /stat
 
 El panel reduce el sondeo REST completo a 30 segundos mientras Socket.IO está conectado y lo deja en cinco segundos si pierde el tiempo real. El scheduler de avisos de sesiones revisa cada cinco segundos. Una extensión activa sin pagos se puede reducir en bloques de 15 minutos; cada ajuste queda auditado con la tarifa snapshot, conserva la extensión original y reduce de forma coherente el tiempo final y el saldo.
 
+El cierre ordenado de la API deja terminar el escaneo activo del scheduler antes de cerrar el pool de PostgreSQL, evitando errores durante los reinicios y despliegues.
+
 Los gráficos de Recharts se cargan bajo demanda al abrir Reportes para reducir el JavaScript descargado al entrar al panel de operación.
 
 UX operativa: las acciones autenticadas muestran una capa de procesamiento; las eliminaciones de productos y estaciones usan modal visual con cancelación y conservación explícita del historial. Se eliminaron referencias visibles a «servidor local» de los textos del panel.

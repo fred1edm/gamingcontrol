@@ -167,10 +167,17 @@ async function scanSessions() {
     if (!activeKeys.has(key)) sentAlerts.delete(key);
 }
 
-const scheduler = setInterval(() => {
-  void scanSessions().catch((error) => app.log.error(error, "alert scheduler"));
-}, 5_000);
-void scanSessions().catch((error) => app.log.error(error, "alert scheduler"));
+let scanInFlight: Promise<void> | null = null;
+function runScheduler() {
+  if (scanInFlight) return;
+  scanInFlight = scanSessions()
+    .catch((error) => app.log.error(error, "alert scheduler"))
+    .finally(() => {
+      scanInFlight = null;
+    });
+}
+const scheduler = setInterval(runScheduler, 5_000);
+runScheduler();
 
 let shuttingDown = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const)
@@ -179,10 +186,15 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
     shuttingDown = true;
     clearInterval(scheduler);
     realtime.io?.close();
-    void app
-      .close()
-      .then(() => db.$disconnect())
-      .then(() => process.exit(0));
+    void (async () => {
+      if (scanInFlight) await scanInFlight;
+      await app.close();
+      await db.$disconnect();
+      process.exit(0);
+    })().catch((error) => {
+      app.log.error(error, "graceful shutdown");
+      process.exit(1);
+    });
   });
 await app.listen({
   host: process.env.API_HOST ?? "127.0.0.1",
