@@ -81,6 +81,14 @@ function groupSessionProducts(sales: SessionView["sales"]) {
   }
   return Array.from(grouped.values());
 }
+function historyPaymentLabel(session: Pick<SessionView, "totalAmount" | "payments">) {
+  if (session.totalAmount <= 0) return "Sin cobro";
+  const paid = session.payments?.reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
+  if (paid >= session.totalAmount) return "Pagado";
+  if (paid > 0)
+    return `Pago parcial · saldo ${currency(session.totalAmount - paid)}`;
+  return "Pendiente de pago";
+}
 type PaymentDraft = { method: string; amount: string };
 const paymentMethodOptions = [
   ["CASH", "Efectivo"],
@@ -1360,7 +1368,7 @@ export function App() {
                             )}
                           </>
                         ) : s.finishedAt ? (
-                          "Pendiente de pago"
+                          historyPaymentLabel(s)
                         ) : (
                           (labels[s.status] ?? s.status)
                         )}
