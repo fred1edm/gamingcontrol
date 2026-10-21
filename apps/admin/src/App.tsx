@@ -1,8 +1,10 @@
 import {
   useCallback,
   useEffect,
+  lazy,
   useRef,
   useState,
+  Suspense,
   type FormEvent,
 } from "react";
 import {
@@ -49,16 +51,17 @@ import {
   stationTypes,
 } from "@gaming/shared";
 import { io } from "socket.io-client";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Button } from "./components/ui/button";
+const RevenueTrendChart = lazy(() =>
+  import("./components/ReportsCharts").then((module) => ({
+    default: module.RevenueTrendChart,
+  })),
+);
+const DemandChart = lazy(() =>
+  import("./components/ReportsCharts").then((module) => ({
+    default: module.DemandChart,
+  })),
+);
 const currency = (c: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(
     c / 100,
@@ -628,12 +631,12 @@ export function App() {
       });
     };
     load();
-    const timer = setInterval(load, 5000);
+    const timer = setInterval(load, realtimeConnected ? 30_000 : 5_000);
     return () => {
       alive = false;
       clearInterval(timer);
     };
-  }, [token, api, refresh]);
+  }, [token, api, refresh, realtimeConnected]);
   useEffect(() => {
     if (!token) return;
     const socket = io(desktopApiOrigin || undefined, {
@@ -1519,59 +1522,13 @@ export function App() {
                     )}
                   </div>
                   <div className="report-grid report-primary-grid">
-                    <div className="panel chart-panel report-trend-panel">
-                      <h2>
-                        {reportPeriod === "daily"
-                          ? "Ingresos del día"
-                          : reportPeriod === "weekly"
-                            ? "Ingresos por día"
-                            : "Ingresos por semana"}
-                      </h2>
-                      <p>
-                        {reportPeriod === "daily"
-                          ? "Cobros registrados en la fecha seleccionada."
-                          : reportPeriod === "weekly"
-                            ? "Comparación de lunes a domingo."
-                            : "Comparación de las semanas del mes seleccionado."}
-                      </p>
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart
-                          data={
-                            reportPeriod === "monthly"
-                              ? report.totalsByWeek.map((row) => ({
-                                  label: `Sem. ${new Date(`${row.weekStart}T12:00:00Z`).toLocaleDateString("es-PE", { day: "2-digit", month: "short", timeZone: "America/Lima" })}`,
-                                  amount: row.amountCents,
-                                }))
-                              : report.totalsByDay.map((row) => ({
-                                  label: new Date(`${row.day}T12:00:00Z`).toLocaleDateString("es-PE", { weekday: reportPeriod === "weekly" ? "short" : undefined, day: "2-digit", month: "short", timeZone: "America/Lima" }),
-                                  amount: row.amountCents,
-                                }))
-                          }
-                        >
-                          <CartesianGrid stroke="#2c3537" vertical={false} />
-                          <XAxis
-                            dataKey="label"
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                          />
-                          <YAxis
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                            tickFormatter={(value) =>
-                              `S/${(value / 100).toFixed(0)}`
-                            }
-                          />
-                          <Tooltip
-                            cursor={false}
-                            formatter={(value) => currency(Number(value))}
-                          />
-                          <Bar
-                            dataKey="amount"
-                            name="Ingresos"
-                            fill="#91edbb"
-                            radius={[5, 5, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<div className="panel chart-panel">Cargando gráfico…</div>}>
+                      <RevenueTrendChart
+                        period={reportPeriod}
+                        totalsByDay={report.totalsByDay}
+                        totalsByWeek={report.totalsByWeek}
+                      />
+                    </Suspense>
                     <div className="panel category-panel">
                       <h2>Ingresos por categoría</h2>
                       <p>PlayStation, PC, mandos, snacks y bebidas cobrados.</p>
@@ -1607,35 +1564,9 @@ export function App() {
                         })()}
                       </div>
                     </div>
-                    <div className="panel chart-panel report-demand-panel">
-                      <h2>Demanda por hora</h2>
-                      <p>Sesiones iniciadas según la hora local.</p>
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart
-                          data={report.demandByHour.map((row) => ({
-                            ...row,
-                            label: `${String(row.hour).padStart(2, "0")}:00`,
-                          }))}
-                        >
-                          <CartesianGrid stroke="#2c3537" vertical={false} />
-                          <XAxis
-                            dataKey="label"
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                          />
-                          <YAxis
-                            allowDecimals={false}
-                            tick={{ fill: "#8a999a", fontSize: 10 }}
-                          />
-                          <Tooltip cursor={false} />
-                          <Bar
-                            dataKey="count"
-                            name="Sesiones"
-                            fill="#8fc3fa"
-                            radius={[5, 5, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<div className="panel chart-panel">Cargando gráfico…</div>}>
+                      <DemandChart demandByHour={report.demandByHour} />
+                    </Suspense>
                   </div>
                   <div className="panel promotions-panel">
                     <div className="panel-heading">
@@ -3189,6 +3120,43 @@ export function App() {
                                 </Button>
                               ))}
                             </div>
+                          </>
+                        )}
+                      {session.mode === "FIXED" &&
+                        session.extensions.some((extension) => extension.canAdjust && extension.minutesAdded > 15) &&
+                        !session.payments?.length && (
+                          <>
+                            <h3>Ajustar extensión</h3>
+                            {session.extensions
+                              .filter((extension) => extension.canAdjust && extension.minutesAdded > 15)
+                              .map((extension) => (
+                                <div className="duration-options" key={extension.id}>
+                                  <span>De {extension.minutesAdded} min a:</span>
+                                  {Array.from(
+                                    { length: extension.minutesAdded / 15 - 1 },
+                                    (_, index) => (index + 1) * 15,
+                                  ).map((minutes) => (
+                                    <Button
+                                      variant="outline"
+                                      key={minutes}
+                                      disabled={busy || !connected}
+                                      onClick={() =>
+                                        void run(async () => {
+                                          await api(
+                                            `/sessions/${session.id}/extensions/${extension.id}/adjust`,
+                                            { minutes },
+                                          );
+                                          setNotice(
+                                            `Extensión ajustada a ${minutes} minutos; se descontó la diferencia del total.`,
+                                          );
+                                        })
+                                      }
+                                    >
+                                      {minutes} min
+                                    </Button>
+                                  ))}
+                                </div>
+                              ))}
                           </>
                         )}
                       <div className="session-control-actions">

@@ -9,7 +9,7 @@ import {
   elapsedWholeMinutes,
 } from "../apps/api/src/money.ts";
 import { hashPassword, verifyPassword } from "../apps/api/src/auth.ts";
-import { startInput, extendInput, stationInput } from "@gaming/shared";
+import { startInput, extendInput, adjustExtensionInput, stationInput } from "@gaming/shared";
 test("PS5 S/8 + mando S/2 + una hora = S/18, no S/20", () => {
   const base = priceForMinutes(800, 60),
     extras = [{ total: 200 }];
@@ -74,6 +74,7 @@ test("cobro por bloques: PC/PS4 y PS5", () => {
   assert.equal(priceForBlocks(500, "PS5", 45), 400);
   assert.equal(priceForBlocks(500, "PS5", 60), 500);
   assert.equal(priceForBlocks(500, "PS5", 75), 650);
+  assert.equal(priceForBlocks(800, "PS5", 60) - priceForBlocks(800, "PS5", 30), 400);
 });
 test("esquemas no admiten importes calculados por cliente como fuente financiera", () => {
   assert.equal(
@@ -82,6 +83,9 @@ test("esquemas no admiten importes calculados por cliente como fuente financiera
     false,
   );
   assert.equal(extendInput.safeParse({ minutes: 10 }).success, false);
+  assert.equal(adjustExtensionInput.safeParse({ minutes: 30 }).success, true);
+  assert.equal(adjustExtensionInput.safeParse({ minutes: 10 }).success, false);
+  assert.equal(adjustExtensionInput.safeParse({ minutes: 32 }).success, false);
   assert.equal(
     startInput.safeParse({ stationId: crypto.randomUUID(), mode: "FIXED" })
       .success,

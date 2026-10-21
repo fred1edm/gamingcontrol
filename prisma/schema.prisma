@@ -289,8 +289,21 @@ model SessionExtension {
   session Session @relation(fields:[sessionId], references:[id])
   minutesAdded Int
   amount Int
+  hourlyCents Int?
+  stationType StationType?
   createdBy String @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  adjustments SessionExtensionAdjustment[]
+}
+model SessionExtensionAdjustment {
+  id String @id @default(uuid()) @db.Uuid
+  extensionId String @db.Uuid
+  extension SessionExtension @relation(fields:[extensionId], references:[id])
+  minutesRemaining Int
+  amountRemaining Int
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([extensionId,createdAt])
 }
 model Extra {
   id String @id @default(uuid()) @db.Uuid

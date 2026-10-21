@@ -15,6 +15,7 @@ import {
   extraInput,
   startInput,
   extendInput,
+  adjustExtensionInput,
   addExtraInput,
   productInput,
   stockInput,
@@ -57,7 +58,10 @@ class ApiError extends Error {
   }
 }
 const details = {
-  extensions: { orderBy: { createdAt: "asc" as const } },
+  extensions: {
+    orderBy: { createdAt: "asc" as const },
+    include: { adjustments: { orderBy: { createdAt: "asc" as const } } },
+  },
   extras: { orderBy: { createdAt: "asc" as const } },
   sales: { include: { items: { orderBy: { createdAt: "asc" as const } } } },
   payments: {
@@ -115,7 +119,17 @@ function view(s: SessionDetail, now: Date) {
       }];
   const freeHour =
     s.mode === "FIXED" && s.baseMinutes === 60 && s.baseAmount === 0;
-  const extensionMinutes = s.extensions.reduce(
+  const extensions = s.extensions.map((extension) => {
+    const adjustment = extension.adjustments.at(-1);
+    return {
+      ...extension,
+      minutesAdded: adjustment?.minutesRemaining ?? extension.minutesAdded,
+      amount: adjustment?.amountRemaining ?? extension.amount,
+      canAdjust:
+        extension.hourlyCents !== null && extension.stationType !== null,
+    };
+  });
+  const extensionMinutes = extensions.reduce(
     (sum, extension) => sum + extension.minutesAdded,
     0,
   );
@@ -160,8 +174,9 @@ function view(s: SessionDetail, now: Date) {
     ...s,
     baseAmount: base,
     totalAmount:
-      sessionTotal(base, s.extensions, s.extras) +
+      sessionTotal(base, extensions, s.extras) +
       s.sales.reduce((sum, sale) => sum + sale.totalCents, 0),
+    extensions,
     status: ["CLOSED", "CANCELLED"].includes(s.status)
       ? s.status
       : s.finishedAt || expired
@@ -744,7 +759,11 @@ export async function buildApp(
           session: {
             include: {
               station: { select: { name: true, type: true } },
-              extensions: true,
+              extensions: {
+                include: {
+                  adjustments: { orderBy: { createdAt: "asc" as const } },
+                },
+              },
               extras: true,
               sales: {
                 include: {
@@ -883,7 +902,11 @@ export async function buildApp(
         );
         const timeCents =
           target.baseAmount +
-          target.extensions.reduce((sum, item) => sum + item.amount, 0);
+          target.extensions.reduce(
+            (sum, item) =>
+              sum + (item.adjustments.at(-1)?.amountRemaining ?? item.amount),
+            0,
+          );
         const extraCents = target.extras.reduce(
           (sum, item) => sum + item.total,
           0,
@@ -1955,6 +1978,8 @@ export async function buildApp(
           sessionId: id,
           minutesAdded: input.minutes,
           amount,
+          hourlyCents: old.hourlyCents,
+          stationType: old.station.type,
           createdBy: actor(req).id,
         },
       });
@@ -1970,6 +1995,68 @@ export async function buildApp(
       await audit(tx, req, "SESSION_EXTENDED", "Session", id, old, updated);
       return view(updated, new Date());
     });
+  });
+  app.post("/sessions/:id/extensions/:extensionId/adjust", async (req) => {
+    const id = idOf(req);
+    const { extensionId } = z
+      .object({ extensionId: z.string().uuid() })
+      .parse(req.params);
+    const input = adjustExtensionInput.parse(req.body);
+    return mutate(
+      req,
+      async (tx) => {
+        const old = await session(tx, id);
+        editable(old);
+        if (old.mode !== "FIXED" || !old.endsAt)
+          throw new ApiError(409, "Solo se ajustan extensiones de sesiones fijas");
+        if (old.payments.length)
+          throw new ApiError(409, "No se ajusta una extensión después de registrar pagos");
+        const extension = old.extensions.find((item) => item.id === extensionId);
+        if (!extension) throw new ApiError(404, "Extensión no encontrada");
+        const previous = extension.adjustments.at(-1);
+        const currentMinutes = previous?.minutesRemaining ?? extension.minutesAdded;
+        const currentAmount = previous?.amountRemaining ?? extension.amount;
+        if (input.minutes >= currentMinutes)
+          throw new ApiError(409, "El nuevo tiempo debe ser menor al de la extensión actual");
+        if (extension.hourlyCents === null || extension.stationType === null)
+          throw new ApiError(409, "Esta extensión antigua no conserva la tarifa necesaria para recalcularla");
+        const amountRemaining = priceForBlocks(
+          extension.hourlyCents,
+          extension.stationType,
+          input.minutes,
+        );
+        const amountCredited = currentAmount - amountRemaining;
+        if (amountCredited <= 0)
+          throw new ApiError(409, "El ajuste no genera una diferencia de cobro");
+        await tx.sessionExtensionAdjustment.create({
+          data: {
+            extensionId,
+            minutesRemaining: input.minutes,
+            amountRemaining,
+            createdBy: actor(req).id,
+          },
+        });
+        const updated = await tx.session.update({
+          where: { id },
+          data: {
+            endsAt: new Date(old.endsAt.getTime() - (currentMinutes - input.minutes) * 60000),
+            totalAmount: { decrement: amountCredited },
+            status: "ACTIVE",
+          },
+          include: details,
+        });
+        await audit(tx, req, "SESSION_EXTENSION_ADJUSTED", "Session", id, old, {
+          session: updated,
+          extensionId,
+          previousMinutes: currentMinutes,
+          minutesRemaining: input.minutes,
+          amountCredited,
+          amountRemaining,
+        });
+        return view(updated, new Date());
+      },
+      events.sessionExtended,
+    );
   });
   app.post("/sessions/:id/extras", async (req) => {
     const id = idOf(req),
@@ -2114,7 +2201,10 @@ export async function buildApp(
             ? new Date(
                 old.endsAt.getTime() -
                   old.extensions.reduce(
-                    (sum, extension) => sum + extension.minutesAdded,
+                    (sum, extension) =>
+                      sum +
+                      (extension.adjustments.at(-1)?.minutesRemaining ??
+                        extension.minutesAdded),
                     0,
                   ) *
                     60000,

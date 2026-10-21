@@ -169,7 +169,7 @@ async function scanSessions() {
 
 const scheduler = setInterval(() => {
   void scanSessions().catch((error) => app.log.error(error, "alert scheduler"));
-}, 1_000);
+}, 5_000);
 void scanSessions().catch((error) => app.log.error(error, "alert scheduler"));
 
 let shuttingDown = false;

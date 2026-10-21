@@ -67,6 +67,9 @@ export const extendInput = z.object({
     z.literal(120),
   ]),
 });
+export const adjustExtensionInput = z.object({
+  minutes: z.number().int().min(15).max(120).multipleOf(15),
+});
 export const addExtraInput = z.object({
   extraId: z.string().uuid(),
   quantity: z.number().int().min(1).max(4).default(1),
@@ -223,6 +226,12 @@ export type SessionView = {
     minutesAdded: number;
     amount: number;
     createdAt: string;
+    canAdjust: boolean;
+    adjustments?: {
+      minutesRemaining: number;
+      amountRemaining: number;
+      createdAt: string;
+    }[];
   }[];
   extras: {
     id: string;

@@ -21,6 +21,7 @@ Errores JSON: `{message, issues?}`; 400 datos inválidos, 401 autenticación, 40
 | GET /sessions/:id         | Autenticado       | Detalle y total calculado por servidor                                            |
 | POST /sessions            | Autenticado       | stationId, mode FIXED/OPEN, minutes si FIXED, extraId opcional, extraQuantity 1–4 |
 | POST /sessions/:id/extend | Autenticado       | minutes: 15,30,60,120                                                             |
+| POST /sessions/:id/extensions/:extensionId/adjust | Autenticado | minutes: menor duración deseada, múltiplo de 15 entre 15 y 120; solo sin pagos |
 | POST /sessions/:id/extras | Autenticado       | extraId, quantity 1–4; PS4/PS5, acumulable hasta 4 mandos por sesión              |
 | POST /sessions/:id/move   | Autenticado       | stationId; estación disponible del mismo tipo, conserva tiempo y consumos         |
 | POST /sessions/:id/cancel | Autenticado       | reason (3–240 caracteres); cancela sin cobro y conserva el motivo en historial |
@@ -29,7 +30,7 @@ Errores JSON: `{message, issues?}`; 400 datos inválidos, 401 autenticación, 40
 | POST /sessions/:id/finish | Autenticado       | {}; termina tiempo, queda pendiente de pago                                       |
 | GET /audit                | ADMIN             | Últimas acciones; filtros `action`, `entityType`, `userId`, `from`, `to`, `limit` |
 
-Fase 4 agrega `GET /settings` y `PUT /settings` para los umbrales `ALERT_FIRST_MINUTES` y `ALERT_SECOND_MINUTES` (1–120 minutos, solo ADMIN). La API publica el catálogo de `docs/socket-events.md` por Socket.IO; la conexión exige el JWT en `handshake.auth.token`. El panel se actualiza al recibir eventos y conserva el sondeo REST como respaldo. Un scheduler interno revisa sesiones fijas cada segundo, emite avisos a los umbrales configurados y finaliza automáticamente las sesiones vencidas.
+Fase 4 agrega `GET /settings` y `PUT /settings` para los umbrales `ALERT_FIRST_MINUTES` y `ALERT_SECOND_MINUTES` (1–120 minutos, solo ADMIN). La API publica el catálogo de `docs/socket-events.md` por Socket.IO; la conexión exige el JWT en `handshake.auth.token`. El panel se actualiza al recibir eventos y conserva el sondeo REST como respaldo. Un scheduler interno revisa sesiones fijas cada cinco segundos, emite avisos a los umbrales configurados y finaliza automáticamente las sesiones vencidas.
 
 Fase 5 agrega `GET /reports/daily`, `GET /reports/weekly` y `GET /reports/monthly` (ADMIN). Cada respuesta devuelve periodo UTC, ingresos cobrados, categorías PC/PlayStation/mandos/snacks, métodos de pago, sesiones y promedio, estación líder, productos más vendidos, demanda por hora y totales por día. Aceptan `date=YYYY-MM-DD` para consultar un día, semana o mes de referencia y `shift=all|morning|afternoon`; los turnos son mañana 10:00–15:00 y tarde 15:00–22:00 en hora local. Los reportes semanales incluyen totales por día y los mensuales por semana. Los periodos se calculan en `America/Lima` y las cifras permanecen en céntimos.
 

@@ -14,6 +14,10 @@ Inventario también permite a ADMIN eliminar un producto mediante desactivación
 
 Estaciones: ADMIN puede desactivar una estación desde su tarjeta (`DELETE /stations/:id`) cuando no tiene una sesión abierta; se conserva su historial. El panel refresca estaciones, caja, inventario, sesiones y ajustes al recibir eventos Socket.IO, con sondeo REST de respaldo cada cinco segundos.
 
+El panel reduce el sondeo REST completo a 30 segundos mientras Socket.IO está conectado y lo deja en cinco segundos si pierde el tiempo real. El scheduler de avisos de sesiones revisa cada cinco segundos. Una extensión activa sin pagos se puede reducir en bloques de 15 minutos; cada ajuste queda auditado con la tarifa snapshot, conserva la extensión original y reduce de forma coherente el tiempo final y el saldo.
+
+Los gráficos de Recharts se cargan bajo demanda al abrir Reportes para reducir el JavaScript descargado al entrar al panel de operación.
+
 UX operativa: las acciones autenticadas muestran una capa de procesamiento; las eliminaciones de productos y estaciones usan modal visual con cancelación y conservación explícita del historial. Se eliminaron referencias visibles a «servidor local» de los textos del panel.
 
 Si el panel recibe una respuesta de una API antigua con `Route ... not found`, la interfaz ahora muestra un mensaje claro solicitando reiniciar el servidor, sin exponer la ruta técnica.

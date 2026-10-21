@@ -479,6 +479,33 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
         ).statusCode,
         409,
       );
+      const beforeAdjustment = result.json<SessionView>();
+      const extensionId = beforeAdjustment.extensions[0]!.id;
+      const adjustment = await write(
+        `/sessions/${sessionId}/extensions/${extensionId}/adjust`,
+        { minutes: 30 },
+        randomUUID(),
+        employeeToken,
+      );
+      assert.equal(adjustment.statusCode, 200);
+      assert.equal(adjustment.json<SessionView>().totalAmount, 1800);
+      assert.equal(adjustment.json<SessionView>().extensions[0]?.minutesAdded, 30);
+      assert.equal(adjustment.json<SessionView>().extensions[0]?.amount, 400);
+      assert.equal(
+        Date.parse(adjustment.json<SessionView>().endsAt!) -
+          Date.parse(beforeAdjustment.endsAt!),
+        -30 * 60_000,
+      );
+      const smallerAdjustment = await write(
+        `/sessions/${sessionId}/extensions/${extensionId}/adjust`,
+        { minutes: 15 },
+        randomUUID(),
+        employeeToken,
+      );
+      assert.equal(smallerAdjustment.statusCode, 200);
+      assert.equal(smallerAdjustment.json<SessionView>().totalAmount, 1600);
+      assert.equal(smallerAdjustment.json<SessionView>().extensions[0]?.minutesAdded, 15);
+      assert.equal(await db.sessionExtensionAdjustment.count({ where: { extensionId } }), 2);
       await write(`/stations/${stationId}/rates`, { hourlyCents: 2000 });
       await write(
         `/extras/${extraId}`,
@@ -490,7 +517,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       const current = (
         await read(`/sessions/${sessionId}`)
       ).json<SessionView>();
-      assert.equal(current.totalAmount, 2200);
+      assert.equal(current.totalAmount, 1600);
       assert.equal(current.hourlyCents, 800);
       assert.equal(current.extras[0]?.unitPrice, 200);
     },
@@ -527,7 +554,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(sale.json<{ totalCents: number }>().totalCents, 300);
       assert.equal(
         (await read(`/sessions/${sessionId}`)).json<SessionView>().totalAmount,
-        2500,
+        1900,
       );
       assert.equal(
         (await db.product.findUniqueOrThrow({ where: { id: productId } }))
@@ -565,7 +592,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       const view = moved.json<SessionView>();
       assert.equal(view.stationId, target.id);
       assert.equal(view.baseAmount, 500);
-      assert.equal(view.totalAmount, 2200);
+      assert.equal(view.totalAmount, 1900);
       assert.equal(view.extras[0]?.quantity, 3);
       assert.equal(view.sales[0]?.items[0]?.productName, `TEST-Gaseosa-${tag}`);
       const list = (await read("/stations")).json<{
@@ -612,7 +639,7 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       assert.equal(finished.statusCode, 200);
       const s = finished.json<SessionView>();
       assert.equal(s.status, "TIME_FINISHED");
-      assert.equal(s.totalAmount, 2200);
+      assert.equal(s.totalAmount, 1900);
       assert.ok(s.finishedAt);
       assert.equal(s.extensions.length, 1);
       assert.deepEqual(
