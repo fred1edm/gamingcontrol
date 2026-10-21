@@ -481,6 +481,10 @@ await test("flujo PostgreSQL real y regresiones financieras", async (t) => {
       );
       const beforeAdjustment = result.json<SessionView>();
       const extensionId = beforeAdjustment.extensions[0]!.id;
+      await db.sessionExtension.update({
+        where: { id: extensionId },
+        data: { hourlyCents: null, stationType: null },
+      });
       const adjustment = await write(
         `/sessions/${sessionId}/extensions/${extensionId}/adjust`,
         { minutes: 30 },

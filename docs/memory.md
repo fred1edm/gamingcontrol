@@ -14,7 +14,7 @@ Inventario también permite a ADMIN eliminar un producto mediante desactivación
 
 Estaciones: ADMIN puede desactivar una estación desde su tarjeta (`DELETE /stations/:id`) cuando no tiene una sesión abierta; se conserva su historial. El panel refresca estaciones, caja, inventario, sesiones y ajustes al recibir eventos Socket.IO, con sondeo REST de respaldo cada cinco segundos.
 
-El panel reduce el sondeo REST completo a 30 segundos mientras Socket.IO está conectado y lo deja en cinco segundos si pierde el tiempo real. El scheduler de avisos de sesiones revisa cada cinco segundos. Una extensión activa sin pagos se puede reducir en bloques de 15 minutos; cada ajuste queda auditado con la tarifa snapshot, conserva la extensión original y reduce de forma coherente el tiempo final y el saldo.
+El panel reduce el sondeo REST completo a 30 segundos mientras Socket.IO está conectado y lo deja en cinco segundos si pierde el tiempo real. El scheduler de avisos de sesiones revisa cada cinco segundos. Una extensión activa sin pagos se puede reducir en bloques de 15 minutos; cada ajuste queda auditado con la tarifa snapshot, conserva la extensión original y reduce de forma coherente el tiempo final y el saldo. Para extensiones antiguas, usa el segmento de tarifa vigente cuando se agregaron solo si coincide exactamente con su cargo original.
 
 El cierre ordenado de la API deja terminar el escaneo activo del scheduler antes de cerrar el pool de PostgreSQL, evitando errores durante los reinicios y despliegues.
 

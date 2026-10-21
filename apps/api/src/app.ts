@@ -121,12 +121,30 @@ function view(s: SessionDetail, now: Date) {
     s.mode === "FIXED" && s.baseMinutes === 60 && s.baseAmount === 0;
   const extensions = s.extensions.map((extension) => {
     const adjustment = extension.adjustments.at(-1);
+    const rateAtCreation = [...s.rateSegments]
+      .reverse()
+      .find(
+        (segment) =>
+          segment.startedAt <= extension.createdAt &&
+          (!segment.endedAt || segment.endedAt >= extension.createdAt),
+      );
+    const snapshotHourlyCents =
+      extension.hourlyCents ?? rateAtCreation?.hourlyCents ?? null;
+    const snapshotStationType =
+      extension.stationType ?? rateAtCreation?.stationType ?? null;
     return {
       ...extension,
       minutesAdded: adjustment?.minutesRemaining ?? extension.minutesAdded,
       amount: adjustment?.amountRemaining ?? extension.amount,
       canAdjust:
-        extension.hourlyCents !== null && extension.stationType !== null,
+        snapshotHourlyCents !== null &&
+        snapshotStationType !== null &&
+        (Boolean(adjustment) ||
+          priceForBlocks(
+            snapshotHourlyCents,
+            snapshotStationType,
+            extension.minutesAdded,
+          ) === extension.amount),
     };
   });
   const extensionMinutes = extensions.reduce(
@@ -2016,13 +2034,33 @@ export async function buildApp(
         const previous = extension.adjustments.at(-1);
         const currentMinutes = previous?.minutesRemaining ?? extension.minutesAdded;
         const currentAmount = previous?.amountRemaining ?? extension.amount;
+        const rateAtCreation = [...old.rateSegments]
+          .reverse()
+          .find(
+            (segment) =>
+              segment.startedAt <= extension.createdAt &&
+              (!segment.endedAt || segment.endedAt >= extension.createdAt),
+          );
+        const snapshotHourlyCents =
+          extension.hourlyCents ?? rateAtCreation?.hourlyCents ?? null;
+        const snapshotStationType =
+          extension.stationType ?? rateAtCreation?.stationType ?? null;
         if (input.minutes >= currentMinutes)
           throw new ApiError(409, "El nuevo tiempo debe ser menor al de la extensión actual");
-        if (extension.hourlyCents === null || extension.stationType === null)
+        if (snapshotHourlyCents === null || snapshotStationType === null)
           throw new ApiError(409, "Esta extensión antigua no conserva la tarifa necesaria para recalcularla");
+        if (
+          !previous &&
+          priceForBlocks(
+            snapshotHourlyCents,
+            snapshotStationType,
+            extension.minutesAdded,
+          ) !== extension.amount
+        )
+          throw new ApiError(409, "No coincide el importe histórico de esta extensión; no se alteró su cobro");
         const amountRemaining = priceForBlocks(
-          extension.hourlyCents,
-          extension.stationType,
+          snapshotHourlyCents,
+          snapshotStationType,
           input.minutes,
         );
         const amountCredited = currentAmount - amountRemaining;
