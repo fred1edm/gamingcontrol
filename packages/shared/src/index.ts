@@ -124,6 +124,9 @@ export const sessionMoveInput = z.object({
 export const sessionCancelInput = z.object({
   reason: z.string().trim().min(3).max(240),
 });
+export const sessionFinishInput = z.object({
+  billUsedTime: z.boolean().default(false),
+});
 export const cashOpenInput = z.object({
   openingAmount: money,
   shift: z.enum(["MORNING", "AFTERNOON"]).default("MORNING"),

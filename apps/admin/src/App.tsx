@@ -463,6 +463,7 @@ export function App() {
     [extraQuantity, setExtraQuantity] = useState(1),
     [chosenExtra, setChosenExtra] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false),
+    [finishUsedTime, setFinishUsedTime] = useState(false),
     [createStation, setCreateStation] = useState(false);
   const [saveSessionId, setSaveSessionId] = useState<string | null>(null);
   const [saveClientName, setSaveClientName] = useState("");
@@ -822,6 +823,7 @@ export function App() {
     setSelected(id);
     setContinuePaidSessionId(null);
     setConfirmFinish(false);
+    setFinishUsedTime(false);
     setMinutes(60);
     setWithExtra(false);
     setChosenProduct("");
@@ -3399,40 +3401,71 @@ export function App() {
                       {confirmFinish ? (
                         <div className="confirm">
                           <p>
-                            Se detendrá la sesión y quedará pendiente de pago.
-                            No podrás agregar más tiempo.
+                            {finishUsedTime
+                              ? "Se cobrará solamente el tiempo utilizado, en bloques de 15 minutos. No podrás agregar más tiempo."
+                              : "Se detendrá la sesión y quedará pendiente de pago. No podrás agregar más tiempo."}
                           </p>
                           <Button
                             variant="destructive"
                             disabled={busy}
                             onClick={() =>
                               void run(async () => {
-                                await api(`/sessions/${session.id}/finish`, {});
+                                await api(`/sessions/${session.id}/finish`, {
+                                  billUsedTime: finishUsedTime,
+                                });
                                 setConfirmFinish(false);
+                                setFinishUsedTime(false);
                                 setNotice(
-                                  "Sesión finalizada y conservada en el historial. Pendiente de pago.",
+                                  finishUsedTime
+                                    ? "Sesión finalizada cobrando solo el tiempo utilizado."
+                                    : "Sesión finalizada y conservada en el historial. Pendiente de pago.",
                                 );
                               })
                             }
                           >
-                            Confirmar finalización
+                            {finishUsedTime
+                              ? "Cobrar tiempo utilizado"
+                              : "Confirmar finalización"}
                           </Button>
                           <Button
                             variant="ghost"
-                            onClick={() => setConfirmFinish(false)}
+                            onClick={() => {
+                              setConfirmFinish(false);
+                              setFinishUsedTime(false);
+                            }}
                           >
                             Volver
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          className="w-full mt-6"
-                          variant="destructive"
-                          disabled={busy || !connected}
-                          onClick={() => setConfirmFinish(true)}
-                        >
-                          Finalizar sesión
-                        </Button>
+                        <>
+                          <Button
+                            className="w-full mt-6"
+                            variant="destructive"
+                            disabled={busy || !connected}
+                            onClick={() => {
+                              setFinishUsedTime(false);
+                              setConfirmFinish(true);
+                            }}
+                          >
+                            Finalizar sesión
+                          </Button>
+                          {session.mode === "FIXED" &&
+                            !session.payments?.length &&
+                            !session.extensions.length && (
+                              <Button
+                                className="w-full mt-3"
+                                variant="outline"
+                                disabled={busy || !connected}
+                                onClick={() => {
+                                  setFinishUsedTime(true);
+                                  setConfirmFinish(true);
+                                }}
+                              >
+                                Finalizar y cobrar tiempo utilizado
+                              </Button>
+                            )}
+                        </>
                       )}
                     </>
                   ) : session.status === "PAUSED" ? (

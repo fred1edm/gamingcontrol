@@ -30,6 +30,7 @@ import {
   sessionResumeInput,
   sessionMoveInput,
   sessionCancelInput,
+  sessionFinishInput,
   loyaltyStampInput,
   loyaltyCardUpdateInput,
   loyaltyRedeemInput,
@@ -76,6 +77,38 @@ function paidAmount(s: { payments: { amountCents: number }[] }) {
 }
 function segmentMinutes(startedAt: Date, endedAt: Date) {
   return Math.max(1, Math.ceil((endedAt.getTime() - startedAt.getTime()) / 60000));
+}
+function usedFixedMinutes(
+  session: SessionDetail,
+  now: Date,
+) {
+  const segments = session.rateSegments.length
+    ? session.rateSegments
+    : [{ startedAt: session.startedAt, endedAt: null }];
+  const elapsedMs = segments.reduce((sum, segment) => {
+    const end = segment.endedAt ?? now;
+    return sum + Math.max(0, end.getTime() - segment.startedAt.getTime());
+  }, 0);
+  return Math.max(1, Math.ceil(elapsedMs / 60000));
+}
+function usedFixedAmount(session: SessionDetail, now: Date) {
+  const segments = session.rateSegments.length
+    ? session.rateSegments
+    : [{
+        stationType: session.station.type,
+        hourlyCents: session.hourlyCents,
+        startedAt: session.startedAt,
+        endedAt: null,
+      }];
+  return segments.reduce((sum, segment) => {
+    const end = segment.endedAt ?? now;
+    if (end <= segment.startedAt) return sum;
+    return sum + priceForBlocks(
+      segment.hourlyCents,
+      segment.stationType,
+      segmentMinutes(segment.startedAt, end),
+    );
+  }, 0);
 }
 function fixedSegmentsAmount(
   session: SessionDetail,
@@ -2223,14 +2256,20 @@ export async function buildApp(
   });
   app.post("/sessions/:id/finish", async (req) => {
     const id = idOf(req);
-    z.object({})
-      .strict()
-      .parse(req.body ?? {});
+    const input = sessionFinishInput.parse(req.body ?? {});
     return mutate(req, async (tx) => {
       const old = await session(tx, id);
       editable(old);
       const now = new Date();
       const computed = view(old, now);
+      if (input.billUsedTime) {
+        if (old.mode !== "FIXED")
+          throw new ApiError(409, "El tiempo libre ya cobra según lo utilizado");
+        if (old.payments.length)
+          throw new ApiError(409, "Una sesión ya pagada debe cerrarse con su pago registrado");
+        if (old.extensions.length)
+          throw new ApiError(409, "Finaliza primero las extensiones agregadas");
+      }
       await closeRateSegment(
         tx,
         id,
@@ -2250,15 +2289,23 @@ export async function buildApp(
             : now
           : now,
       );
-      const fullyPaid = paidAmount(old) >= computed.totalAmount;
+      const usedMinutes = input.billUsedTime ? usedFixedMinutes(old, now) : null;
+      const usedAmount = input.billUsedTime ? usedFixedAmount(old, now) : null;
+      const finalBaseAmount = input.billUsedTime ? usedAmount! : computed.baseAmount;
+      const finalTotalAmount = input.billUsedTime
+        ? sessionTotal(finalBaseAmount, [], old.extras) +
+          old.sales.reduce((sum, sale) => sum + sale.totalCents, 0)
+        : computed.totalAmount;
+      const fullyPaid = paidAmount(old) >= finalTotalAmount;
       const closesFreeHour = !old.payments.length && computed.totalAmount === 0;
       const updated = await tx.session.update({
         where: { id },
         data: {
           status: fullyPaid || closesFreeHour ? "CLOSED" : "TIME_FINISHED",
           finishedAt: now,
-          baseAmount: computed.baseAmount,
-          totalAmount: computed.totalAmount,
+          ...(input.billUsedTime ? { baseMinutes: usedMinutes } : {}),
+          baseAmount: finalBaseAmount,
+          totalAmount: finalTotalAmount,
           ...(fullyPaid || closesFreeHour
             ? { closedAt: now, closedBy: actor(req).id }
             : {}),
@@ -2274,6 +2321,8 @@ export async function buildApp(
         req,
         fullyPaid && old.payments.length
           ? "SESSION_FINISHED_PREPAID"
+          : input.billUsedTime
+            ? "SESSION_FINISHED_USED_TIME"
           : closesFreeHour
             ? "SESSION_FINISHED_FREE_HOUR"
           : "SESSION_FINISHED_PENDING_PAYMENT",
