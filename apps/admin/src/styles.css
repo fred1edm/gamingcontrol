@@ -1557,6 +1557,8 @@ details pre {
   white-space: nowrap;
 }
 .pending-payment-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
   display: grid;
   gap: 16px;
   padding: 16px;
@@ -1569,6 +1571,27 @@ details pre {
 }
 .pending-payment-panel .payment-fields {
   gap: 10px;
+}
+.continue-session-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #8fc3fa25;
+  border-radius: 10px;
+  background: #8fc3fa08;
+}
+.continue-session-box h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.continue-session-box p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.continue-session-box .duration-options {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .desktop-notification-setting {
   display: flex;

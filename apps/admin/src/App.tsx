@@ -580,7 +580,15 @@ export function App() {
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      const data = (await response.json()) as T & { message?: string };
+      const raw = await response.text();
+      let data = {} as T & { message?: string };
+      if (raw.trim()) {
+        try {
+          data = JSON.parse(raw) as T & { message?: string };
+        } catch {
+          throw new Error("El servidor devolvió una respuesta inválida");
+        }
+      }
       if (body !== undefined && response.status < 500) pending.current = null;
       if (!response.ok) {
         if (response.status === 401 && path !== "/auth/login") logout();
