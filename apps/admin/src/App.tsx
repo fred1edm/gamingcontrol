@@ -464,6 +464,7 @@ export function App() {
     [chosenExtra, setChosenExtra] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false),
     [finishUsedTime, setFinishUsedTime] = useState(false),
+    [confirmOpenMode, setConfirmOpenMode] = useState(false),
     [createStation, setCreateStation] = useState(false);
   const [saveSessionId, setSaveSessionId] = useState<string | null>(null);
   const [saveClientName, setSaveClientName] = useState("");
@@ -824,6 +825,7 @@ export function App() {
     setContinuePaidSessionId(null);
     setConfirmFinish(false);
     setFinishUsedTime(false);
+    setConfirmOpenMode(false);
     setMinutes(60);
     setWithExtra(false);
     setChosenProduct("");
@@ -3145,6 +3147,44 @@ export function App() {
                             </div>
                           </>
                         )}
+                      {session.mode === "FIXED" &&
+                        !session.payments?.length &&
+                        !session.extensions.length &&
+                        (confirmOpenMode ? (
+                          <div className="confirm">
+                            <p>
+                              Se conservará el tiempo utilizado y se cancelará el tiempo restante. Desde ahora se cobrará como tiempo libre.
+                            </p>
+                            <Button
+                              variant="outline"
+                              disabled={busy || !connected}
+                              onClick={() =>
+                                void run(async () => {
+                                  await api(`/sessions/${session.id}/open`, {});
+                                  setConfirmOpenMode(false);
+                                  setNotice("La sesión ahora continúa como tiempo libre.");
+                                })
+                              }
+                            >
+                              Confirmar cambio a tiempo libre
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => setConfirmOpenMode(false)}
+                            >
+                              Volver
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            className="w-full mt-3"
+                            variant="outline"
+                            disabled={busy || !connected}
+                            onClick={() => setConfirmOpenMode(true)}
+                          >
+                            Cambiar a tiempo libre
+                          </Button>
+                        ))}
                       {session.mode === "FIXED" &&
                         session.extensions.some((extension) => extension.canAdjust && extension.minutesAdded > 15) &&
                         !session.payments?.length && (

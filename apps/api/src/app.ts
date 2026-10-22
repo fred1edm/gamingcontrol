@@ -2334,6 +2334,45 @@ export async function buildApp(
       return view(updated, now);
     });
   });
+  app.post("/sessions/:id/open", async (req) => {
+    const id = idOf(req);
+    z.object({}).strict().parse(req.body ?? {});
+    return mutate(
+      req,
+      async (tx) => {
+        const old = await session(tx, id);
+        editable(old);
+        if (old.mode !== "FIXED")
+          throw new ApiError(409, "La sesión ya está en tiempo libre");
+        if (old.payments.length)
+          throw new ApiError(409, "Una sesión ya pagada no puede cambiar a tiempo libre");
+        if (old.extensions.length)
+          throw new ApiError(409, "Finaliza primero las extensiones agregadas");
+        const now = new Date();
+        if (old.endsAt && old.endsAt <= now)
+          throw new ApiError(409, "La sesión ya terminó");
+        await closeRateSegment(tx, id, now);
+        await openRateSegment(tx, id, old.station.type, old.hourlyCents, now);
+        const changed = await tx.session.update({
+          where: { id },
+          data: { mode: "OPEN", baseMinutes: null, endsAt: null },
+          include: details,
+        });
+        const recalculated = view(changed, now);
+        const updated = await tx.session.update({
+          where: { id },
+          data: {
+            baseAmount: recalculated.baseAmount,
+            totalAmount: recalculated.totalAmount,
+          },
+          include: details,
+        });
+        await audit(tx, req, "SESSION_CHANGED_TO_OPEN", "Session", id, old, updated);
+        return view(updated, now);
+      },
+      events.sessionUpdated,
+    );
+  });
   app.post("/sessions/:id/pause", async (req) => {
     const id = idOf(req);
     z.object({})
