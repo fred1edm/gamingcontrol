@@ -465,6 +465,7 @@ export function App() {
   const [confirmFinish, setConfirmFinish] = useState(false),
     [finishUsedTime, setFinishUsedTime] = useState(false),
     [confirmOpenMode, setConfirmOpenMode] = useState(false),
+    [roundToMinutes, setRoundToMinutes] = useState<number | null>(null),
     [createStation, setCreateStation] = useState(false);
   const [saveSessionId, setSaveSessionId] = useState<string | null>(null);
   const [saveClientName, setSaveClientName] = useState("");
@@ -804,6 +805,17 @@ export function App() {
     : 0;
   const continuePaidSession = session?.id === continuePaidSessionId;
   const sessionCanAdd = !session?.payments?.length || continuePaidSession;
+  const openRoundOptions =
+    session?.mode === "OPEN" && !session.payments?.length
+      ? [60, 120].filter(
+          (target) =>
+            target >
+            Math.max(
+              1,
+              Math.ceil((now - Date.parse(session.startedAt)) / 60000),
+            ),
+        )
+      : [];
   const available = stations.filter((s) => s.status === "AVAILABLE").length,
     availableStations = stations.filter((s) => s.status === "AVAILABLE"),
     occupied = stations.filter(
@@ -826,6 +838,7 @@ export function App() {
     setConfirmFinish(false);
     setFinishUsedTime(false);
     setConfirmOpenMode(false);
+    setRoundToMinutes(null);
     setMinutes(60);
     setWithExtra(false);
     setChosenProduct("");
@@ -3222,6 +3235,56 @@ export function App() {
                               ))}
                           </>
                         )}
+                      {session.mode === "OPEN" && openRoundOptions.length > 0 &&
+                        (roundToMinutes ? (
+                          <div className="confirm">
+                            <p>
+                              La sesión se convertirá a {roundToMinutes / 60} hora
+                              {roundToMinutes === 120 ? "s" : ""}. Se cobrará ese
+                              total y quedará el tiempo restante para completar el
+                              redondeo.
+                            </p>
+                            <Button
+                              variant="outline"
+                              disabled={busy || !connected}
+                              onClick={() =>
+                                void run(async () => {
+                                  await api(`/sessions/${session.id}/round`, {
+                                    minutes: roundToMinutes,
+                                  });
+                                  setRoundToMinutes(null);
+                                  setNotice(
+                                    `Sesión redondeada a ${roundToMinutes / 60} hora${roundToMinutes === 120 ? "s" : ""}.`,
+                                  );
+                                })
+                              }
+                            >
+                              Confirmar redondeo
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => setRoundToMinutes(null)}
+                            >
+                              Volver
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <h3>Redondear sesión</h3>
+                            <div className="duration-options">
+                              {openRoundOptions.map((target) => (
+                                <Button
+                                  variant="outline"
+                                  key={target}
+                                  disabled={busy || !connected}
+                                  onClick={() => setRoundToMinutes(target)}
+                                >
+                                  Redondear a {target / 60} h
+                                </Button>
+                              ))}
+                            </div>
+                          </>
+                        ))}
                       <div className="session-control-actions">
                         <Button
                           variant="outline"

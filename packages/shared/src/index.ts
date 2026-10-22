@@ -124,6 +124,9 @@ export const sessionMoveInput = z.object({
 export const sessionCancelInput = z.object({
   reason: z.string().trim().min(3).max(240),
 });
+export const sessionRoundInput = z.object({
+  minutes: z.union([z.literal(60), z.literal(120)]),
+});
 export const sessionFinishInput = z.object({
   billUsedTime: z.boolean().default(false),
 });

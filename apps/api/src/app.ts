@@ -30,6 +30,7 @@ import {
   sessionResumeInput,
   sessionMoveInput,
   sessionCancelInput,
+  sessionRoundInput,
   sessionFinishInput,
   loyaltyStampInput,
   loyaltyCardUpdateInput,
@@ -2368,6 +2369,55 @@ export async function buildApp(
           include: details,
         });
         await audit(tx, req, "SESSION_CHANGED_TO_OPEN", "Session", id, old, updated);
+        return view(updated, now);
+      },
+      events.sessionUpdated,
+    );
+  });
+  app.post("/sessions/:id/round", async (req) => {
+    const id = idOf(req);
+    const input = sessionRoundInput.parse(req.body ?? {});
+    return mutate(
+      req,
+      async (tx) => {
+        const old = await session(tx, id);
+        editable(old);
+        if (old.mode !== "OPEN")
+          throw new ApiError(409, "Solo las sesiones libres pueden redondearse");
+        if (old.payments.length)
+          throw new ApiError(409, "Una sesión ya pagada no puede redondearse");
+        const now = new Date();
+        const elapsedMinutes = usedFixedMinutes(old, now);
+        if (input.minutes <= elapsedMinutes)
+          throw new ApiError(409, "El redondeo debe ser mayor al tiempo utilizado");
+        await closeRateSegment(tx, id, now);
+        await openRateSegment(tx, id, old.station.type, old.hourlyCents, now);
+        const changed = await tx.session.update({
+          where: { id },
+          data: {
+            mode: "FIXED",
+            baseMinutes: input.minutes,
+            endsAt: new Date(
+              now.getTime() + (input.minutes - elapsedMinutes) * 60000,
+            ),
+            status: "ACTIVE",
+          },
+          include: details,
+        });
+        const recalculated = view(changed, now);
+        const updated = await tx.session.update({
+          where: { id },
+          data: {
+            baseAmount: recalculated.baseAmount,
+            totalAmount: recalculated.totalAmount,
+          },
+          include: details,
+        });
+        await audit(tx, req, "SESSION_ROUNDED_TO_FIXED", "Session", id, old, {
+          session: updated,
+          elapsedMinutes,
+          roundedMinutes: input.minutes,
+        });
         return view(updated, now);
       },
       events.sessionUpdated,
