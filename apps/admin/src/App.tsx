@@ -3617,6 +3617,60 @@ export function App() {
                             : "El historial está guardado. Registra el pago para liberar la estación."}
                         </p>
                       </div>
+                      {!session.payments?.length &&
+                        session.finishedAt &&
+                        session.status === "TIME_FINISHED" && (
+                          <div className="continue-session-box">
+                            <h3>Continuar sesión</h3>
+                            <p>
+                              El cliente quiere seguir. El nuevo tiempo se sumará
+                              a esta sesión y al total pendiente.
+                            </p>
+                            <div className="duration-options">
+                              {session.mode === "FIXED"
+                                ? [15, 30, 60, 120].map((n) => (
+                                    <Button
+                                      variant="outline"
+                                      key={n}
+                                      disabled={busy || !connected}
+                                      onClick={() =>
+                                        void run(async () => {
+                                          await api(
+                                            `/sessions/${session.id}/continue`,
+                                            { minutes: n },
+                                          );
+                                          setNotice(
+                                            `Se agregó ${n < 60 ? `${n} minutos` : `${n / 60} hora${n === 60 ? "" : "s"}`} a la sesión.`,
+                                          );
+                                        })
+                                      }
+                                    >
+                                      +{n < 60 ? `${n} min` : `${n / 60} h`}
+                                    </Button>
+                                  ))
+                                : [
+                                    <Button
+                                      variant="outline"
+                                      key="open"
+                                      disabled={busy || !connected}
+                                      onClick={() =>
+                                        void run(async () => {
+                                          await api(
+                                            `/sessions/${session.id}/continue`,
+                                            {},
+                                          );
+                                          setNotice(
+                                            "La sesión continúa como tiempo libre.",
+                                          );
+                                        })
+                                      }
+                                    >
+                                      Continuar tiempo libre
+                                    </Button>,
+                                  ]}
+                            </div>
+                          </div>
+                        )}
                       <PaymentFields
                         split={splitSessionPayment}
                         onSplitChange={setSplitSessionPayment}

@@ -31,6 +31,7 @@ import {
   sessionMoveInput,
   sessionCancelInput,
   sessionRoundInput,
+  sessionContinueInput,
   sessionFinishInput,
   loyaltyStampInput,
   loyaltyCardUpdateInput,
@@ -2418,6 +2419,84 @@ export async function buildApp(
           elapsedMinutes,
           roundedMinutes: input.minutes,
         });
+        return view(updated, now);
+      },
+      events.sessionUpdated,
+    );
+  });
+  app.post("/sessions/:id/continue", async (req) => {
+    const id = idOf(req);
+    const input = sessionContinueInput.parse(req.body ?? {});
+    return mutate(
+      req,
+      async (tx) => {
+        const old = await session(tx, id);
+        if (!old.finishedAt || old.status !== "TIME_FINISHED")
+          throw new ApiError(409, "Solo puedes continuar una sesión finalizada pendiente de pago");
+        if (old.payments.length)
+          throw new ApiError(409, "Una sesión ya pagada debe iniciar una nueva sesión");
+        const now = new Date();
+        if (old.mode === "FIXED" && input.minutes === undefined)
+          throw new ApiError(400, "Indica los minutos para continuar la sesión");
+        if (old.mode === "OPEN" && input.minutes !== undefined)
+          throw new ApiError(400, "Una sesión libre debe continuar como tiempo libre");
+        await openRateSegment(tx, id, old.station.type, old.hourlyCents, now);
+        let updated;
+        if (old.mode === "FIXED") {
+          const amount = priceForBlocks(
+            old.hourlyCents,
+            old.station.type,
+            input.minutes!,
+          );
+          await tx.sessionExtension.create({
+            data: {
+              sessionId: id,
+              minutesAdded: input.minutes!,
+              amount,
+              hourlyCents: old.hourlyCents,
+              stationType: old.station.type,
+              createdBy: actor(req).id,
+            },
+          });
+          updated = await tx.session.update({
+            where: { id },
+            data: {
+              status: "ACTIVE",
+              finishedAt: null,
+              closedAt: null,
+              closedBy: null,
+              endsAt: new Date(now.getTime() + input.minutes! * 60000),
+              totalAmount: { increment: amount },
+            },
+            include: details,
+          });
+        } else {
+          const changed = await tx.session.update({
+            where: { id },
+            data: {
+              status: "ACTIVE",
+              finishedAt: null,
+              closedAt: null,
+              closedBy: null,
+              endsAt: null,
+            },
+            include: details,
+          });
+          const recalculated = view(changed, now);
+          updated = await tx.session.update({
+            where: { id },
+            data: {
+              baseAmount: recalculated.baseAmount,
+              totalAmount: recalculated.totalAmount,
+            },
+            include: details,
+          });
+        }
+        await tx.station.update({
+          where: { id: old.stationId },
+          data: { status: "IN_USE" },
+        });
+        await audit(tx, req, "SESSION_CONTINUED", "Session", id, old, updated);
         return view(updated, now);
       },
       events.sessionUpdated,
