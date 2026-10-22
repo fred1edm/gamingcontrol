@@ -1601,19 +1601,33 @@ details pre {
   border-radius: 10px;
   background: #8fc3fa08;
 }
+.round-session-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .round-session-box h3 {
   margin: 0;
   font-size: 13px;
 }
-.round-session-box p,
 .round-session-box small {
   margin: 0;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
 }
-.round-session-box label {
+.round-session-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.round-session-form label {
   margin: 0;
+}
+.round-session-form button {
+  min-width: 78px;
 }
 .desktop-notification-setting {
   display: flex;

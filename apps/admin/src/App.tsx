@@ -3279,42 +3279,36 @@ export function App() {
                           </div>
                         ) : (
                           <div className="round-session-box">
-                            <div>
-                              <h3>Definir duración objetivo</h3>
-                              <p>
-                                Escribe en cuántas horas debe terminar la sesión. Debe ser
-                                mayor al tiempo utilizado y puede ser hasta 24 horas.
-                              </p>
+                            <div className="round-session-heading">
+                              <h3>Redondear sesión</h3>
+                              <small>
+                                Usado: {Math.floor(openElapsedMinutes / 60)} h {openElapsedMinutes % 60} min
+                              </small>
                             </div>
-                            <label>
-                              Duración total (horas)
-                              <input
-                                type="number"
-                                min="1"
-                                max="24"
-                                step="1"
-                                inputMode="numeric"
-                                value={customRoundHours}
-                                onChange={(e) => setCustomRoundHours(e.target.value)}
-                                placeholder="Ej. 3"
-                              />
-                            </label>
-                            <Button
-                              variant="outline"
-                              disabled={
-                                busy ||
-                                !connected ||
-                                !customRoundValid
-                              }
-                              onClick={() =>
-                                setRoundToMinutes(customRoundTargetMinutes)
-                              }
-                            >
-                              Continuar hasta {customRoundHours || "…"} h
-                            </Button>
-                            <small>
-                              Tiempo utilizado: {Math.floor(openElapsedMinutes / 60)} h {openElapsedMinutes % 60} min
-                            </small>
+                            <div className="round-session-form">
+                              <label>
+                                Horas totales
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="24"
+                                  step="1"
+                                  inputMode="numeric"
+                                  value={customRoundHours}
+                                  onChange={(e) => setCustomRoundHours(e.target.value)}
+                                  placeholder="Ej. 3"
+                                />
+                              </label>
+                              <Button
+                                variant="outline"
+                                disabled={busy || !connected || !customRoundValid}
+                                onClick={() =>
+                                  setRoundToMinutes(customRoundTargetMinutes)
+                                }
+                              >
+                                Aplicar
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       <div className="session-control-actions">
